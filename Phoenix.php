@@ -5,16 +5,15 @@ class Phoenix {
 	var $settings = array();
 
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE){
+		/*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
 		if($root === NULL){ $root = dirname(__FILE__).'/'; }
-		if($create === FALSE){
-			if(Phoenix::directory_exists($root)){
-				$this->root = $root;
-			}
+		if(Phoenix::directory_exists($root)){
+			$this->root = $root;
 		}
-		else{
+		elseif($create !== FALSE){
 			if(Phoenix::directory_exists(dirname($root))){
 				if(!Phoenix::directory_exists($root) && Phoenix::is_authenticated()){
-					mkdir($root, substr(sprintf('%o', fileperms(dirname($root))), -4) );
+					mkdir($root, 0777 /*substr(sprintf('%o', fileperms(dirname($root))), -4)*/ );
 				}
 				$this->root = $root;
 			}
@@ -86,20 +85,35 @@ class Phoenix {
 		return ( $keep <= 0 ? /*first*/ reset($set) : /*last*/ end($set) );
 	}
 	
+	function download($to=FALSE){
+		if($to === FALSE){ $to = $this->root.basename($this->get_src()); }
+		$buffer = file_get_contents($this->get_src());
+		file_put_contents($to, $buffer);
+		chmod($to, 0777);
+	}
+	
 	function update($save_settings=FALSE){
 		if($this->is_enabled()){
 			/* gets $this->src (download, unpack) and replaces $this->src */
 			if($save_settings !== FALSE){ $this->save_settings(); }
 		}
 	}
+	
+	function uninstall($dir=NULL, $recursive=TRUE){
+		/*fix*/ if($dir === NULL){ $dir = $this->root; }
+		if(!preg_match("#^(".$this->root.")#i", $dir)){ return FALSE; }
+		if($this->is_enabled()){
+			$list = scandir($dir);
+			foreach($list as $i=>$f){
+				if(!preg_match("#^[\.]{1,2}$#i", $f)){
+					if(is_dir($dir.$f) && $recursive === TRUE){ $this->uninstall($dir.$f.'/'); }
+					elseif(file_exists($dir.$f)){ unlink($dir.$f); }
+				}
+			}
+			rmdir($dir);
+			return TRUE;
+		}
+		return FALSE;
+	}
 }
-
-//testing:
-print '<pre>';
-$Ph = new Phoenix();
-print 'Phoenix status is <strong>'.($Ph->is_enabled() ? 'enabled' : 'disabled')."</strong>\n";
-print_r($Ph);
-$Ph->change_src('https://github.com/sentfanwyaerda/Phoenix/archive/98024c1655673b193a34e191d1cdaf4f85fb566d.zip');
-print_r($Ph);
-print '</pre>';
 ?>
