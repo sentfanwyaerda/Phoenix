@@ -90,16 +90,65 @@ class Phoenix {
 		$buffer = file_get_contents($this->get_src());
 		file_put_contents($to, $buffer);
 		chmod($to, 0777);
+		return $to;
 	}
 	
 	function update($save_settings=FALSE){
 		if($this->is_enabled()){
 			/* gets $this->src (download, unpack) and replaces $this->src */
+			$this->install($this->download(), TRUE);
 			if($save_settings !== FALSE){ $this->save_settings(); }
 		}
 	}
 	
-	function uninstall($dir=NULL, $recursive=TRUE){
+	function install($archive, $uninstall_first=FALSE){
+		if(!file_exists($archive) && !preg_match("#[\.](zip)$#i", $archive)){ return FALSE; }
+		if($this->is_enabled()){
+			if($uninstall_first !== FALSE){ $this->uninstall($this->root, TRUE, TRUE); }
+			$zip = new ZipArchive;
+			$res = $zip->open($archive);
+			if($res === TRUE){
+				$zip->extractTo($this->root); //, $files
+				$zip->close();
+				$only = $this->_find_one_directory_only($this->root, TRUE);
+				print '<!-- '.$only.' -->';
+				if($only !== FALSE){ $this->_move_up_one_directory($this->root.$only.'/', TRUE); }
+				return TRUE;
+			}
+		}
+		return FALSE;
+	}
+	private function _find_one_directory_only($dir, $ignore_archives=FALSE){
+		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
+		$list = scandir($dir);
+		$set = array();
+		foreach($list as $i=>$f){
+			if(!preg_match("#^[\.]{1,2}$#i", $f) && (!$ignore_archives || !preg_match("#[\.](zip|tgz|tar.gz|bz)$#i", $f))){
+				if(file_exists($dir.$f)){
+					//if(!is_dir($dir.$f)){ return FALSE; }
+					$set[] = $f;
+				}
+			}
+		}
+		if(count($set) != 1){
+			/*notify*/ print '<!-- _find_one_directory_only: '.print_r($set, TRUE).' -->'."\n";
+			return FALSE;
+		}
+		return end($set);
+	}
+	private function _move_up_one_directory($dir, $remove=FALSE){
+		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
+		$list = scandir($dir);
+		foreach($list as $i=>$f){
+			if(!preg_match("#^[\.]{1,2}$#i", $f)){
+				rename($dir.$f, dirname($dir).'/'.$f);
+			}
+		}
+		if($remove !== FALSE){ rmdir($dir); }
+		return TRUE;
+	}
+	
+	function uninstall($dir=NULL, $recursive=TRUE, $keep_archives=TRUE){
 		/*fix*/ if($dir === NULL){ $dir = $this->root; }
 		if(!preg_match("#^(".$this->root.")#i", $dir)){ return FALSE; }
 		if($this->is_enabled()){
@@ -107,10 +156,14 @@ class Phoenix {
 			foreach($list as $i=>$f){
 				if(!preg_match("#^[\.]{1,2}$#i", $f)){
 					if(is_dir($dir.$f) && $recursive === TRUE){ $this->uninstall($dir.$f.'/'); }
-					elseif(file_exists($dir.$f)){ unlink($dir.$f); }
+					elseif(file_exists($dir.$f)){
+						if($keep_archives !== TRUE || !preg_match("#[\.](zip|tgz|tar.gz|bz)$#i", $f)){
+							unlink($dir.$f);
+						}
+					}
 				}
 			}
-			rmdir($dir);
+			@rmdir($dir);
 			return TRUE;
 		}
 		return FALSE;
