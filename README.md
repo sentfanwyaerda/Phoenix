@@ -16,6 +16,5 @@ $P->update();
 It is easy to make an archive keep working with Phoenix. You need to make an [phoenix.json](./phoenix.json)-file:
 ```json
 {"name" : "$archive",
-"src": "http://the.location.wh/ere/you/found/the/$archive.zip"
-}
+"src": "http://the.location.wh/ere/you/found/the/$archive.zip"}
 ```

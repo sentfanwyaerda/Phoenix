@@ -19,7 +19,7 @@ class Phoenix {
 			}
 		}
 		$this->load_settings();
-		if($src !== FALSE ){ $this->change_src( $src ); }
+		if($src !== FALSE && strlen($src) >= 1 ){ $this->change_src( $src ); }
 	}
 	function directory_exists($dir){ return (file_exists($dir) && is_dir($dir)) ; }
 	function is_enabled(){
@@ -47,6 +47,9 @@ class Phoenix {
 		if(isset($this->src)){ return $this->src; }
 		#if(isset($this->settings['src'])){ return $this->settings['src']; }
 		return FALSE;
+	}
+	function get_project(){
+		return (isset($this->settings['name']) ? $this->settings['name'] : FALSE);
 	}
 	function change_src($src){
 		$this->src = $src;
@@ -142,6 +145,7 @@ class Phoenix {
 		foreach($list as $i=>$f){
 			if(!preg_match("#^[\.]{1,2}$#i", $f)){
 				rename($dir.$f, dirname($dir).'/'.$f);
+				/*fix*/ chmod(dirname($dir).'/'.$f, 0777);
 			}
 		}
 		if($remove !== FALSE){ rmdir($dir); }

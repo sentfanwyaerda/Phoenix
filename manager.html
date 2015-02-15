@@ -1,0 +1,38 @@
+<html>
+	<header>
+		<title>Phoenix Manager &mdash; {short}</title>
+		<style>
+			p { margin: 3px 0px;  }
+			form { width: 550px; }
+			.max { width: 100%; }
+			input[name="mount"] { width: 470px; }
+			input[name="src"] { width: 470px; }
+			.right { text-align: right; }
+			.italic, em, i { font-style: italic; }
+			.float.right { float: right; }
+			.float.left { float: left; }
+			
+			input[type="button"], input[type="submit"], input[type="reset"] { cursor: pointer; border: 1px solid #999; 
+				text-shadow: 2px 2px 3px rgba(33,33,33,0.3); box-shadow: 2px 2px 3px rgba(33,33,33,0.3); margin: 0px; padding: 1px 4px; 
+				border-radius: 4px; background-color: rgba(196,196,196,0.8); width: 80px; }
+			input.plus { width: 21px; margin: 0; padding: 0; background-color: rgba(225,225,225,0.8); font-weight: bold; }
+			input.red { background-color: rgba(196,0,0,0.8); color: white; }
+			input.red[readonly] { background-color: rgba(196,0,0,0.3); color: #EEE; font-weight: normal; cursor: default; }
+		</style>
+	</header>
+	<body>
+			<p class="notify {result:class}">{result}</p>
+			
+		<form method="POST" id="phoenix">
+			<input type="hidden" name="Phoenix" value="manager" />
+			
+			<p>Mount: <span class="float right"><input type="checkbox" name="create" value="true" id="create" {create:checked} /><label for="create" class="italic"> create if not (yet) exists</label></span></p>
+			<p><input type="text" name="mount" value="{mount}" placeholder="/www/somewhere/archive/" class="max" /><input type="submit" name="action" value="test" /></p>
+			<p>Source:</p>
+			<p><input type="url" name="src" value="{src}" placeholder="http://github.com/" class="max" /><input type="submit" name="action" value="download" /></p>
+			
+			
+			<p><input type="submit" name="action" value="install" /> <input type="submit" name="action" value="uninstall" class="red" /><span class="float right"><input type="submit" name="action" value="update" /></span></p>
+		</form>
+	</body>
+</html>
