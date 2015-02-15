@@ -22,21 +22,21 @@ if(Phoenix::is_authenticated()){
 	
 	//*debug*/ $result .= '<li><pre>'.print_r($Ph, TRUE).'</pre></li>';
 		
-	/*fix*/ if(strlen($_POST["src"])<=1){ $_POST["src"] = $Ph->get_src(); }
+	/*fix*/ if(strlen($_POST["src"])<=1 && isset($Ph) && is_object($Ph)){ $_POST["src"] = $Ph->get_src(); }
 	
-	if(in_array(strtolower($_POST['action']), array('download','install','update')) ){ /*case 'download':*/
+	if(in_array(strtolower($_POST['action']), array('download','install','update')) && isset($Ph) && is_object($Ph) ){ /*case 'download':*/
 		$start = microtime(TRUE);
 		$archive_file = $Ph->download();
 		$end = microtime(TRUE);
 		$result .= '<li><code>'.$archive_file.'</code> <span>downloaded in '.number_format(($end-$start),2).' seconds</span>, from: <a href="'.$_POST['src'].'"><code>'.$_POST['src'].'</code></a></li>';
 	}
-	if(in_array(strtolower($_POST['action']), array('install')) ){ /*case 'install':*/
+	if(in_array(strtolower($_POST['action']), array('install')) && isset($Ph) && is_object($Ph) ){ /*case 'install':*/
 		$Ph->install($archive_file);
 	}
-	if(in_array(strtolower($_POST['action']), array('uninstall')) ){ /*case 'uninstall':*/
+	if(in_array(strtolower($_POST['action']), array('uninstall')) && isset($Ph) && is_object($Ph) ){ /*case 'uninstall':*/
 		$Ph->uninstall(NULL, TRUE, FALSE);
 	}
-	if(in_array(strtolower($_POST['action']), array('update')) ){ /*case 'uninstall':*/
+	if(in_array(strtolower($_POST['action']), array('update')) && isset($Ph) && is_object($Ph) ){ /*case 'uninstall':*/
 		$Ph->update();
 	}
 	if(in_array(strtolower($_POST['action']), array('test','download','install','update','uninstall')) ){ /*case 'test':*/
