@@ -29,7 +29,7 @@ class Phoenix {
 	function is_authenticated(){
 		return (class_exists('Heracles') ? ( Heracles::is_authenticated() && Heracles::has_role('administrator') ) : TRUE);
 	}
-	
+
 	function get_root(){ return (isset($this) ? $this->root : NULL); }
 	function get_fileshort(){ return 'phoenix.json'; }
 
@@ -40,7 +40,7 @@ class Phoenix {
 			if(!file_exists($file)){ return FALSE; }
 			$this->settings = json_decode(file_get_contents($file), TRUE);
 		}
-		
+
 		/*fix*/ if($this->src === NULL && isset($this->settings['src'])){ $this->change_src( $this->settings['src'] ); }
 	}
 	function get_src(){
@@ -61,7 +61,7 @@ class Phoenix {
 		}
 		return FALSE;
 	}
-	
+
 	function get_backup($id=0){
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
 		return $file;
@@ -87,7 +87,7 @@ class Phoenix {
 		}
 		return ( $keep <= 0 ? /*first*/ reset($set) : /*last*/ end($set) );
 	}
-	
+
 	function download($to=FALSE){
 		if($to === FALSE){ $to = $this->root.basename($this->get_src()); }
 		$buffer = file_get_contents($this->get_src());
@@ -95,7 +95,7 @@ class Phoenix {
 		chmod($to, 0777);
 		return $to;
 	}
-	
+
 	function update($save_settings=FALSE){
 		if($this->is_enabled()){
 			/* gets $this->src (download, unpack) and replaces $this->src */
@@ -103,7 +103,7 @@ class Phoenix {
 			if($save_settings !== FALSE){ $this->save_settings(); }
 		}
 	}
-	
+
 	function install($archive, $uninstall_first=FALSE){
 		if(!file_exists($archive) && !preg_match("#[\.](zip)$#i", $archive)){ return FALSE; }
 		if($this->is_enabled()){
@@ -151,7 +151,7 @@ class Phoenix {
 		if($remove !== FALSE){ rmdir($dir); }
 		return TRUE;
 	}
-	
+
 	function uninstall($dir=NULL, $recursive=TRUE, $keep_archives=TRUE){
 		/*fix*/ if($dir === NULL){ $dir = $this->root; }
 		if(!preg_match("#^(".$this->root.")#i", $dir)){ return FALSE; }
@@ -171,6 +171,76 @@ class Phoenix {
 			return TRUE;
 		}
 		return FALSE;
+	}
+
+
+	function get_github_data($src=FALSE, $magic=TRUE/*array()*/){
+		if(isset($this) && $src===FALSE){ $src = $this->src; }
+		/*fix*/if(!($magic === TRUE) && !is_array($magic)){ $magic = array($magic); }
+		$end = '€'; $end2 = '¤';
+
+		if(preg_match('#^(http[s]?|git)[\:]//(www[\.])?(github[\.]com)/([^/]+)/([^/]+)(.*)$#i', $src, $buffer)){
+			$list = array(); $list['original'] = $src;
+			list($list['original'], $list['protocol'], $list['webprefix'], $list['domain'], $list['author'], $list['repository'], $list['deeplink']) = $buffer;
+			if(preg_match('#^/archive/(.*)\.(zip|tar\.gz)$#', $list['deeplink'], $b)){ $list['branch'] = $b[1]; $list['archive'] = $b[2]; }
+			$list['page'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/';
+			$list['clone'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'.git';
+			$list['clone-ssh'] = 'git@'.$list['domain'].':'.$list['author'].'/'.$list['repository'].'.git';
+			$list['download'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/archive/'.(isset($list['branch']) ? $list['branch'] : 'master').'.'.(isset($list['archive']) ? $list['archive'] : 'zip');
+			$list['releases'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/releases';
+			$list['tags'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/tags';
+			$list['commits'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/commits/'.(isset($list['branch']) ? $list['branch'] : 'master');
+			$list['issues'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/issues';
+			$list['contributors'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/graphs/contributors';
+			$list['wiki'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/wiki';
+
+			if($magic === TRUE || in_array('stats', $magic)){
+				$list['stats'] = array();
+				$page_raw = file_get_contents($list['page']); $page_raw = str_replace('</a>', $end, $page_raw);
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/watchers"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['watchers'] = trim(self::_get_value_of_span($a[2])); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/stargazers"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['stargazers'] = trim(self::_get_value_of_span($a[2])); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/network"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['forks'] = trim(self::_get_value_of_span($a[2])); }
+				if(preg_match('#[\<]a(\s+class="[^"]+"|\sdata-pjax)?\s+href="/'.$list['author'].'/'.$list['repository'].'/commits/master"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['commits'] = trim(self::_get_value_of_span($a[2])); }
+				if(preg_match('#[\<]a(\s+class="[^"]+"|\sdata-pjax)?\s+href="/'.$list['author'].'/'.$list['repository'].'/branches"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['branches'] = trim(self::_get_value_of_span($a[2], 'num text-emphasized')); }
+				if(preg_match('#[\<]a(\s+class="[^"]+"|\sdata-pjax)?\s+href="/'.$list['author'].'/'.$list['repository'].'/releases"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['releases'] = trim(self::_get_value_of_span($a[2], 'num text-emphasized')); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/graphs/contributors"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['contributors'] = trim(self::_get_value_of_span($a[2])); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/issues"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['issues'] = trim(self::_get_value_of_span($a[2], 'counter')); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/pulls"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['pullrequests'] = trim(self::_get_value_of_span($a[2], 'counter')); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/projects"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['projects'] = trim(self::_get_value_of_span($a[2])); }
+
+				foreach($list['stats'] as $n=>$v){ if(!(is_int($v) || preg_match('#^\d+$#', $v))){ unset($list['stats'][$n]); } }
+
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/tree/([^"]+)"[^\>]*[\>]Permalink'.$end.'#i', $page_raw, $a)){ $list['last-commit'] = trim($a[2]); }
+			}
+			//if(in_array('contributor', $magic)){ $list['contributor'] = array(); }
+			if($magic === TRUE || in_array('versions', $magic)){
+				$list['versions'] = self::_get_github_tags($list, 'tags', $page_raw);
+			}
+			if($magic === TRUE || in_array('branches', $magic)){
+				$list['branches'] = self::_get_github_tags($list, 'branches', $page_raw);
+			}
+			return $list;
+		}
+		else { return FALSE; }
+	}
+	private function _get_value_of_span($str=NULL, $class=FALSE){
+		if(preg_match('#[\<]span'.($class!==FALSE ? '(\sclass="'.$class.'")' : '(\s[^\>]+)?').'[\>]([^\<]+)[\<]/span[\>]#i', $str, $buffer)){
+			return $buffer[2];
+		}
+		return $str;
+	}
+	private function _get_github_tags($list, $tagstr='tags', $page_raw=FALSE){
+		$res = array();
+		$end = '€'; $end2 = '¤';
+		if($page_raw === FALSE || strlen($page_raw) < 1){ $page_raw = file_get_contents($list['page']); $page_raw = str_replace('</a>', $end, $page_raw); }
+		$page_raw = str_replace('</div>', $end2, $page_raw);
+		if(preg_match('#[\<]div class="[^"]+" data-tab-filter="'.($tagstr ? $tagstr : 'tags').'"[^\>]*[\>]\s*[\<]div[^\>]+[\>]([^'.$end2.']+)'.$end2.'#i', $page_raw, $buffer)){ $data_tab = $buffer[1]; }
+		else{ $data_tab = NULL; /*$page_raw*/; }
+		preg_match_all('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/tree/([^"]+)"[^\>]*[\>]([^'.$end.']+)'.$end.'#', $data_tab, $buffer);
+		foreach($buffer[2] as $i=>$v){
+			$res[] = trim(self::_get_value_of_span($buffer[3][$i]));
+		}
+		return $res;
 	}
 }
 ?>
