@@ -207,10 +207,18 @@ class Phoenix {
 				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/issues"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['issues'] = trim(self::_get_value_of_span($a[2], 'counter')); }
 				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/pulls"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['pullrequests'] = trim(self::_get_value_of_span($a[2], 'counter')); }
 				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/projects"[^\>]*[\>]([^'.$end.']+)'.$end.'#i', $page_raw, $a)){ $list['stats']['projects'] = trim(self::_get_value_of_span($a[2])); }
-
 				foreach($list['stats'] as $n=>$v){ if(!(is_int($v) || preg_match('#^\d+$#', $v))){ unset($list['stats'][$n]); } }
-
-				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/tree/([^"]+)"[^\>]*[\>]Permalink'.$end.'#i', $page_raw, $a)){ $list['last-commit'] = trim($a[2]); }
+			}
+			if($magic === TRUE || in_array('last-commit', $magic)){
+				/*fix*/ if(!isset($page_raw)){ $page_raw = file_get_contents($list['page']); $page_raw = str_replace('</a>', $end, $page_raw); }
+				if(preg_match('#[\<]a(\s+class="[^"]+")?\s+href="/'.$list['author'].'/'.$list['repository'].'/tree/([^"]+)"[^\>]*[\>]Permalink'.$end.'#i', $page_raw, $a)){
+					$list['last-commit'] = array();
+					$list['last-commit']['sha'] = trim($a[2]);
+					$commit_raw = file_get_contents($list['page'].'commit/'.$list['last-commit']['sha']);
+					if(preg_match('#[\<]relative\-time datetime="([^"]+)"[\>]([^\<]+)[\<]/relative\-time[\>]#i', $commit_raw, $a)){ $list['last-commit']['timestamp'] = $a[1]; }
+					if(preg_match('#[\<]p class="commit\-title"[\>]([^\<]+)[\<]/p[\>]#i', $commit_raw, $a)){ $list['last-commit']['description'] = trim($a[1]); }
+					if(preg_match('#[\<]img alt="[\@]?([^"]+)" class="avatar" height="24" src="([^"]+)"[^\>]+[\>]#i', $commit_raw, $a)){ $list['last-commit']['author'] = $a[1]; $list['last-commit']['avatar'] = $a[2]; }
+				}
 			}
 			//if(in_array('contributor', $magic)){ $list['contributor'] = array(); }
 			if($magic === TRUE || in_array('versions', $magic)){
@@ -241,6 +249,29 @@ class Phoenix {
 			$res[] = trim(self::_get_value_of_span($buffer[3][$i]));
 		}
 		return $res;
+	}
+	function fingerprint($dir, $root=FALSE){
+		/*fix*/ if($root===FALSE){ $root = $dir; }
+		if(!(substr($dir, 0, strlen($root)) == $root)){ return FALSE; }
+		$prefix = substr($dir, strlen($root));
+		/*fix*/ if(substr($dir, -1) != '/'){ $dir .= '/';}
+		$db = array();
+		$list = scandir($dir);
+		foreach($list as $i=>$f){
+			if(!preg_match('#^([\.]{1,2}|\.git)$#', $f)){
+				if(file_exists($dir.$f) && !is_dir($dir.$f)){
+					$db[] = array(
+						'file'=>$prefix.$f,
+						'size'=>filesize($dir.$f),
+						'mtime'=>filemtime($dir.$f),
+						'mtime:iso8601'=>date('c',filemtime($dir.$f)),
+						'md5'=> @md5_file($dir.$f),
+						'sha1'=> @sha1_file($dir.$f)
+					);
+				} else { $db = array_merge($db, self::fingerprint($dir.$f.'/', $root)); }
+			}
+		}
+		return $db;
 	}
 }
 ?>
