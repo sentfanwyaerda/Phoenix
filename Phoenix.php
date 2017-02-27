@@ -231,13 +231,13 @@ class Phoenix {
 		}
 		else { return FALSE; }
 	}
-	private function _get_value_of_span($str=NULL, $class=FALSE){
+	/*private*/ function _get_value_of_span($str=NULL, $class=FALSE){
 		if(preg_match('#[\<]span'.($class!==FALSE ? '(\sclass="'.$class.'")' : '(\s[^\>]+)?').'[\>]([^\<]+)[\<]/span[\>]#i', $str, $buffer)){
 			return $buffer[2];
 		}
 		return $str;
 	}
-	private function _get_github_tags($list, $tagstr='tags', $page_raw=FALSE){
+	/*private*/ function _get_github_tags($list, $tagstr='tags', $page_raw=FALSE){
 		$res = array();
 		$end = '€'; $end2 = '¤';
 		if($page_raw === FALSE || strlen($page_raw) < 1){ $page_raw = file_get_contents($list['page']); $page_raw = str_replace('</a>', $end, $page_raw); }
@@ -256,19 +256,66 @@ class Phoenix {
 		$prefix = substr($dir, strlen($root));
 		/*fix*/ if(substr($dir, -1) != '/'){ $dir .= '/';}
 		$db = array();
-		$list = scandir($dir);
-		foreach($list as $i=>$f){
-			if(!preg_match('#^([\.]{1,2}|\.git)$#', $f)){
-				if(file_exists($dir.$f) && !is_dir($dir.$f)){
-					$db[] = array(
-						'file'=>$prefix.$f,
-						'size'=>filesize($dir.$f),
-						'mtime'=>filemtime($dir.$f),
-						'mtime:iso8601'=>date('c',filemtime($dir.$f)),
-						'md5'=> @md5_file($dir.$f),
-						'sha1'=> @sha1_file($dir.$f)
-					);
-				} else { $db = array_merge($db, self::fingerprint($dir.$f.'/', $root)); }
+		if(preg_match('#\.zip#i', $root)){
+			$z = explode('.zip', $root);
+			$zz = md5($z[0]).'-'.sha1($z['0']);
+			if(!file_exists('/tmp/'.$zz.'.zip')){
+				file_put_contents('/tmp/'.$zz.'.zip', file_get_contents($z[0].'.zip'));
+				$zcreated = TRUE;
+			} else { $zcreated = FALSE; }
+
+			/*fix*/ $cleanup = (preg_match('#^https\://github\.com/[^/]+/([^/]+)/archive/(.*)$#', $z['0'], $q) ? $q[1].'-'.$q[2].'/' : NULL);
+
+			$db['/tmp/'.$zz.'.zip']['src'] = $z[0].'.zip';
+			$db['/tmp/'.$zz.'.zip']['size'] = filesize('/tmp/'.$zz.'.zip');
+			$db['/tmp/'.$zz.'.zip']['mtime'] = filemtime('/tmp/'.$zz.'.zip');
+			$db['/tmp/'.$zz.'.zip']['mtime:iso8601'] = date('c', filemtime('/tmp/'.$zz.'.zip'));
+			$db['/tmp/'.$zz.'.zip']['md5'] = @md5_file('/tmp/'.$zz.'.zip');
+			$db['/tmp/'.$zz.'.zip']['sha1'] = @sha1_file('/tmp/'.$zz.'.zip');
+			/*fix*/ $db['/tmp/'.$zz.'.zip']['clear'] = $cleanup;
+
+			$zip = new ZipArchive;
+			$zip->open('/tmp/'.$zz.'.zip');
+
+			for($i=0;$i<$zip->numFiles;$i++){
+				$stat[$i] = $zip->statIndex($i);
+				$raw = $zip->getFromIndex($i);
+				$name = (substr($zip->getNameIndex($i), 0, strlen($cleanup)) == $cleanup ? substr($zip->getNameIndex($i), strlen($cleanup) ) : $zip->getNameIndex($i));
+				/*fix*/ $name = (strlen($name) == 0 ? '/' : $name);
+				$db[] = array(
+					'file'=>$name,
+					'size'=>$stat[$i]['size'],
+					'mtime'=>$stat[$i]['mtime'],
+					'mtime:iso8601'=>date('c',$stat[$i]['mtime']),
+					'md5'=> @md5($raw),
+					'sha1'=> @sha1($raw)
+				);
+			}
+			//*debug*/ print_r($zip);
+			if($zcreated === TRUE){ unlink('/tmp/'.$zz.'.zip'); }
+		}
+		else{ # $dir is a directory
+			$list = scandir($dir);
+			foreach($list as $i=>$f){
+				if(!preg_match('#^([\.]{1,2}|\.git)$#', $f)){
+					if(file_exists($dir.$f) && !is_dir($dir.$f)){
+						$db[] = array(
+							'file'=>$prefix.$f,
+							'size'=>filesize($dir.$f),
+							'mtime'=>filemtime($dir.$f),
+							'mtime:iso8601'=>date('c',filemtime($dir.$f)),
+							'md5'=> @md5_file($dir.$f),
+							'sha1'=> @sha1_file($dir.$f)
+						);
+					} else {
+						$db[] = array(
+							'file'=>$prefix.$f.'/',
+							'mtime'=>filemtime($dir.$f.'/'),
+							'mtime:iso8601'=>date('c',filemtime($dir.$f.'/'))
+						);
+						$db = array_merge($db, self::fingerprint($dir.$f.'/', $root));
+					}
+				}
 			}
 		}
 		return $db;
