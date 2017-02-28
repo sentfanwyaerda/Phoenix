@@ -1,17 +1,19 @@
 <?php
 class Phoenix {
+	var $name = NULL;
 	var $src = NULL; /* http://www.github.com/ */
 	var $root = FALSE; /* /www/module/ */
 	var $settings = array();
 
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE){
 		/*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
-		if($root === NULL){ $root = dirname(__FILE__).'/'; }
+		/*fix*/if($root === NULL){ $root = dirname(__FILE__).'/'; }
+		/*when $root is archive-name only*/ if(!preg_match('#[/]#i', $root) && strlen($root)>0){ $this->name = $root; $root = dirname(dirname(__FILE__)).'/'.$root.'/';}
 		if(Phoenix::directory_exists($root)){
 			$this->root = $root;
 		}
 		elseif($create !== FALSE){
-			if(Phoenix::directory_exists(dirname($root))){
+			if(Phoenix::directory_exists(dirname($root)) && is_writeable(dirname($root)) ){
 				if(!Phoenix::directory_exists($root) && Phoenix::is_authenticated()){
 					mkdir($root, 0777 /*substr(sprintf('%o', fileperms(dirname($root))), -4)*/ );
 				}
@@ -20,6 +22,7 @@ class Phoenix {
 		}
 		$this->load_settings();
 		if($src !== FALSE && strlen($src) >= 1 ){ $this->change_src( $src ); }
+		/*fix*/ if($this->name === NULL){ $this->name = (is_dir($this->root) ? basename($this->root) : basename(dirname($this->root)) );}
 	}
 	function directory_exists($dir){ return (file_exists($dir) && is_dir($dir)) ; }
 	function is_enabled(){
@@ -41,7 +44,7 @@ class Phoenix {
 			$this->settings = json_decode(file_get_contents($file), TRUE);
 		}
 
-		/*fix*/ if($this->src === NULL && isset($this->settings['src'])){ $this->change_src( $this->settings['src'] ); }
+		/*fix*/ if($this->src === NULL && isset($this->settings[0]['src'])){ $this->change_src( $this->settings[0]['src'] ); }
 	}
 	function get_src(){
 		if(isset($this->src)){ return $this->src; }
@@ -88,8 +91,13 @@ class Phoenix {
 		return ( $keep <= 0 ? /*first*/ reset($set) : /*last*/ end($set) );
 	}
 
-	function download($to=FALSE){
-		if($to === FALSE){ $to = $this->root.basename($this->get_src()); }
+	function download($to=FALSE, $conf=array()){
+		/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
+		if($to === FALSE){ $to = (
+				is_array($conf) && isset($conf['repository'])
+				? dirname($this->root).'/'.$conf['repository'].(isset($conf['last-commit']['sha']) ? '-'.$conf['last-commit']['sha'] : NULL).'.zip'
+				: $this->root.basename($this->get_src())
+			); }
 		$buffer = file_get_contents($this->get_src());
 		file_put_contents($to, $buffer);
 		chmod($to, 0777);
