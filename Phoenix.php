@@ -70,9 +70,6 @@ class Phoenix {
 		#if(isset($this->settings['src'])){ return $this->settings['src']; }
 		return FALSE;
 	}
-	function get_project(){
-		return (isset($this->settings['name']) ? $this->settings['name'] : FALSE);
-	}
 	function change_src($src){
 		$this->src = $src;
 	}
@@ -80,6 +77,16 @@ class Phoenix {
 		if($this->is_enabled()){
 			if($file === NULL){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
 			return file_put_contens($file, json_encode($this->settings));
+		}
+		return FALSE;
+	}
+	function clear_settings(){
+		$set = array();
+		return $set;
+	}
+	function getIndexByName($archive){
+		for($i=0;$i<count($this->settings);$i++){
+			if(strtolower($this->settings[$i]['name']) == strtolower($archive)){ return $i; }
 		}
 		return FALSE;
 	}

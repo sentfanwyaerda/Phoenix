@@ -36,7 +36,7 @@ As you might notice `$mount` is an absolute path. To be more flexible and compli
 When `$src` is within the [GitHub](https://github.com/)-domain, the link can be analysed to provide more options. Try `Phoenix::get_github_data($src);`.
 
 
-### Phoenix workflow
+## Phoenix workflow
 1. Checks if `$mount` exists, to determine if it could already be installed.
 2. If installed; when testing-functionality is available, it tests the functionality of the current install and saves the results.
 3. Identifies the target by `$src`. If it is on [Github](http://github.com/) it analyses the current version: gets releases and branches and statistics (issues, forks, stargazers), and data of the current commit (sha, comment, author).
@@ -93,11 +93,23 @@ To provide a shell of security (e.g. test if the user is authenticated and has `
 ### PHOENIX_ARCHIVE
 The constant `PHOENIX_ARCHIVE` sets the directory where all downloaded repositories are saved, and where the (overall) [phoenix.json](./phoenix.json) database is located. If you need to deviate from `dirname(dirname(__FILE__))`, make sure to set this constant before loading the Phoenix-library.
 
+### Phoenix::getIndexByName($archive)
+
 ### [phoenix.json](./phoenix.json)
+```json
+[
+   {"name":"Phoenix","src":"https://github.com/sentfanwyaerda/Phoenix/archive/master.zip","type":"tool","license":{"short":"cc-by-nd"}}
+]
+```
 
 ### Phoenix::load_settings()
+Loads the settings from [phoenix.json](./phoenix.json) into the Phoenix-object.
 
 ### Phoenix::save_settings()
+Saves the settings to [phoenix.json](./phoenix.json).
+
+### Phoenix::clean_settings()
+Removes additional data to provide an usable [phoenix.json](./phoenix.json) to do a fresh install on an other system.
 
 ### PHOENIX_FRAMEWORK
 Phoenix is designed to work with [Hades](https://github.com/sentfanwyaerda/Hades). But if needed can be integrated into an other logical domain. By default it is set to `FALSE` and does not use a framework at all.
