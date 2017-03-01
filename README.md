@@ -48,3 +48,59 @@ When `$src` is within the [GitHub](https://github.com/)-domain, the link can be 
 9. Phoenix reports a notification of success.
 
 Currently only steps 3, 5, 7 of the workflow are available and test-worthy.
+
+## Documentation
+
+### Phoenix($phoenix_file, $auto=FALSE)
+This function is a configuration short of the *auto upgrade* procedure.
+
+### new Phoenix()
+
+### Phoenix::install()
+*alias: `Phoenix::git_clone()`*
+
+### Phoenix::upgrade($force=FALSE)
+*alias: `Phoenix::git_pull()`*
+
+### Phoenix::backup()
+
+### Phoenix::stall()
+
+### Phoenix::revert($to)
+*alias: `Phoenix::restore()`*
+
+### Phoenix::uninstall()
+
+### Phoenix::download()
+
+### Phoenix::fingerprint()
+
+### Phoenix::fingerprint_diff()
+
+### Phoenix::get_github_data($src)
+
+### (bool) Phoenix::is_authenticated()
+To provide a shell of security (e.g. test if the user is authenticated and has `administrator` rights), Phoenix uses [Heracles](https://github.com/sentfanwyaerda/Heracles/) for this task.
+
+**WARNING**: when [Heracles](https://github.com/sentfanwyaerda/Heracles) is not available it will return `TRUE`.
+
+### (bool) Phoenix::is_enabled()
+
+### (bool) Phoenix::upgrade_available()
+
+### (bool) Phoenix::git_enabled()
+
+### PHOENIX_ARCHIVE
+The constant `PHOENIX_ARCHIVE` sets the directory where all downloaded repositories are saved, and where the (overall) [phoenix.json](./phoenix.json) database is located. If you need to deviate from `dirname(dirname(__FILE__))`, make sure to set this constant before loading the Phoenix-library.
+
+### [phoenix.json](./phoenix.json)
+
+### Phoenix::load_settings()
+
+### Phoenix::save_settings()
+
+### PHOENIX_FRAMEWORK
+Phoenix is designed to work with [Hades](https://github.com/sentfanwyaerda/Hades). But if needed can be integrated into an other logical domain. By default it is set to `FALSE` and does not use a framework at all.
+
+### Phoenix::get_framework_root($type)
+

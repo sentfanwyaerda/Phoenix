@@ -1,6 +1,7 @@
 <?php
 if(file_exists(dirname(dirname(__FILE__)).'/Heracles/Heracles.php')){ require_once(dirname(dirname(__FILE__)).'/Heracles/Heracles.php'); }
-if(!defined('PHOENIX_ARCHIVE')){ define('PHOENIX_ARCHIVE', dirname(dirname(__FILE__)).DIRECTORY_SEPERATOR; }
+if(!defined('PHOENIX_ARCHIVE')){ define('PHOENIX_ARCHIVE', dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR); }
+if(!defined('PHOENIX_FRAMEWORK')){ define('PHOENIX_FRAMEWORK', FALSE); }
 
 class Phoenix {
 	var $name = NULL;
@@ -36,6 +37,19 @@ class Phoenix {
 	}
 	function is_authenticated(){
 		return (class_exists('Heracles') ? ( Heracles::is_authenticated() && Heracles::has_role('administrator') ) : TRUE);
+	}
+
+	function upgrade_available(){ return FALSE; }
+	function git_enabled(){ return FALSE; }
+
+	function get_framework_root($type=FALSE){
+		if(!(PHOENIX_FRAMEWORK === FALSE)){
+			if(class_exists(PHOENIX_FRAMEWORK) && method_exists(PHOENIX_FRAMEWORK, 'get_root')){
+				$PF = new PHOENIX_FRAMEWORK;
+				return $PF->get_root($type);
+			}
+		}
+		return $this->root;
 	}
 
 	function get_root($flag=TRUE){ return ($flag === TRUE && isset($this) ? $this->root : PHOENIX_ARCHIVE); }
@@ -75,6 +89,7 @@ class Phoenix {
 		return $file;
 	}
 	function backup(){ return $backup; }
+	function revert($to){ return self::restore($to); }
 	function restore($id=0){
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
 	}
@@ -96,6 +111,8 @@ class Phoenix {
 		return ( $keep <= 0 ? /*first*/ reset($set) : /*last*/ end($set) );
 	}
 
+	function stall(){}
+
 	function download($to=FALSE, $conf=array()){
 		/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
 		if($to === FALSE){ $to = (
@@ -110,6 +127,7 @@ class Phoenix {
 	}
 
 	function update($save_settings=FALSE){ return self::upgrade(FALSE, $save_settings); }
+	function git_pull($autocreate=FALSE, $save_settings=FALSE){ return self::upgrade($autocreate, $save_settings); }
 	function upgrade($autocreate=FALSE, $save_settings=FALSE){
 		if($this->is_enabled()){
 			/* gets $this->src (download, unpack) and replaces $this->src */
@@ -118,6 +136,7 @@ class Phoenix {
 		}
 	}
 
+	function git_clone($archive, $uninstall_first=FALSE){ return self::install($archive, $uninstall_first); }
 	function install($archive, $uninstall_first=FALSE){
 		if(!file_exists($archive) && !preg_match("#[\.](zip)$#i", $archive)){ return FALSE; }
 		if($this->is_enabled()){
@@ -290,6 +309,7 @@ class Phoenix {
 
 			$zip = new ZipArchive;
 			$zip->open('/tmp/'.$zz.'.zip');
+			$db['/tmp/'.$zz.'.zip']['comment'] = $zip->getArchiveComment();
 
 			for($i=0;$i<$zip->numFiles;$i++){
 				$stat[$i] = $zip->statIndex($i);
@@ -302,7 +322,8 @@ class Phoenix {
 					'mtime'=>$stat[$i]['mtime'],
 					'mtime:iso8601'=>date('c',$stat[$i]['mtime']),
 					'md5'=> @md5($raw),
-					'sha1'=> @sha1($raw)
+					'sha1'=> @sha1($raw),
+					'comment'=>$zip->getCommentIndex($i)
 				);
 			}
 			//*debug*/ print_r($zip);
@@ -334,5 +355,13 @@ class Phoenix {
 		}
 		return $db;
 	}
+	function fingerprint_diff($old=array(), $new=array()){
+		$diff = array();
+		return $diff;
+	}
+}
+function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){
+	$P = new Phoenix(NULL, FALSE, $auto, $pfile);
+	return $P->upgrade($auto, $save_settings);
 }
 ?>
