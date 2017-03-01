@@ -3,13 +3,14 @@
 
 "a phoenix (..) is a long-lived bird that is cyclically regenerated or reborn." &mdash; [Wikipedia](http://en.wikipedia.org/wiki/Phoenix_%28mythology%29)
 
-To install by use of an *phoenix.json* file:
+To install an `$archive` by use of a [phoenix.json](./phoenix.json)-file:
 
 ```php
 $P = new Phoenix( dirname(__FILE__).'/phoenix.json' );
+$P->upgrade(TRUE); //automatically creates $archive when not already exists
 ```
 
-To install or update a particular $archive:
+To manually install or update a particular `$archive`:
 
 ```php
 $mount = "/www/your/tools-directory/$archive/";
@@ -18,7 +19,7 @@ $P = new Phoenix($mount=NULL, $src=FALSE, $create=FALSE);
 //To install the particular $archive:
 $P->install($P->download($src));
 //next time:
-$P->update();
+$P->upgrade(FALSE);
 ```
 
 It is easy to synchronize archives with Phoenix. You should use an [phoenix.json](./phoenix.json)-file, to configure, like:
@@ -30,7 +31,7 @@ It is easy to synchronize archives with Phoenix. You should use an [phoenix.json
 ]
 ```
 
-As you might notice `$mount` is an absolute path. To be more flexible and compliant to the framework (like [Hades](https://github.com/sentfanwyaerda/Hades/)), you could assign `$type` as `*tool*`, or any other hotkey.
+As you might notice `$mount` is an absolute path. To be more flexible and compliant to the framework (like [Hades](https://github.com/sentfanwyaerda/Hades/)), you could assign `$type` as `'tool'` or `'javascript'` or `'skin'`, or any other available hotkey.
 
 When `$src` is within the [GitHub](https://github.com/)-domain, the link can be analysed to provide more options. Try `Phoenix::get_github_data($src);`.
 

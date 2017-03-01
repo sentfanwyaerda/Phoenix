@@ -109,7 +109,8 @@ class Phoenix {
 		return $to;
 	}
 
-	function update($save_settings=FALSE){
+	function update($save_settings=FALSE){ return self::upgrade(FALSE, $save_settings); }
+	function upgrade($autocreate=FALSE, $save_settings=FALSE){
 		if($this->is_enabled()){
 			/* gets $this->src (download, unpack) and replaces $this->src */
 			$this->install($this->download(), TRUE);
