@@ -3,11 +3,19 @@
 
 "a phoenix (..) is a long-lived bird that is cyclically regenerated or reborn." &mdash; [Wikipedia](http://en.wikipedia.org/wiki/Phoenix_%28mythology%29)
 
+To install by use of an *phoenix.json* file:
+
+```php
+$P = new Phoenix( dirname(__FILE__).'/phoenix.json' );
+```
+
+To install or update a particular $archive:
+
 ```php
 $mount = "/www/your/tools-directory/$archive/";
 $src = "http://the.location.wh/ere/you/found/the/$archive.zip";
 $P = new Phoenix($mount=NULL, $src=FALSE, $create=FALSE);
-//To install the $archive:
+//To install the particular $archive:
 $P->install($P->download($src));
 //next time:
 $P->update();

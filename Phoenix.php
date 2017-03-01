@@ -10,6 +10,7 @@ class Phoenix {
 
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=NULL){
 		/*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
+		/**/if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
 		/*fix*/if($root === NULL){ $root = dirname(__FILE__).'/'; }
 		/*when $root is archive-name only*/ if(!preg_match('#[/]#i', $root) && strlen($root)>0){ $this->name = $root; $root = dirname(dirname(__FILE__)).'/'.$root.'/';}
 		if(Phoenix::directory_exists($root)){
