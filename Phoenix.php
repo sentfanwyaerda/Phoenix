@@ -1,11 +1,14 @@
 <?php
+if(file_exists(dirname(dirname(__FILE__)).'/Heracles/Heracles.php')){ require_once(dirname(dirname(__FILE__)).'/Heracles/Heracles.php'); }
+if(!defined('PHOENIX_ARCHIVE')){ define('PHOENIX_ARCHIVE', dirname(dirname(__FILE__)).DIRECTORY_SEPERATOR; }
+
 class Phoenix {
 	var $name = NULL;
 	var $src = NULL; /* http://www.github.com/ */
 	var $root = FALSE; /* /www/module/ */
 	var $settings = array();
 
-	function Phoenix($root=NULL, $src=FALSE, $create=FALSE){
+	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=NULL){
 		/*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
 		/*fix*/if($root === NULL){ $root = dirname(__FILE__).'/'; }
 		/*when $root is archive-name only*/ if(!preg_match('#[/]#i', $root) && strlen($root)>0){ $this->name = $root; $root = dirname(dirname(__FILE__)).'/'.$root.'/';}
@@ -20,7 +23,8 @@ class Phoenix {
 				$this->root = $root;
 			}
 		}
-		$this->load_settings();
+		$this->load_settings($phoenix_file, TRUE);
+		/*fix*/ if(!is_array($this->settings) || count($this->settings) == 0){ $this->load_settings(NULL, FALSE); }
 		if($src !== FALSE && strlen($src) >= 1 ){ $this->change_src( $src ); }
 		/*fix*/ if($this->name === NULL){ $this->name = (is_dir($this->root) ? basename($this->root) : basename(dirname($this->root)) );}
 	}
@@ -33,14 +37,14 @@ class Phoenix {
 		return (class_exists('Heracles') ? ( Heracles::is_authenticated() && Heracles::has_role('administrator') ) : TRUE);
 	}
 
-	function get_root(){ return (isset($this) ? $this->root : NULL); }
+	function get_root($flag=TRUE){ return ($flag === TRUE && isset($this) ? $this->root : PHOENIX_ARCHIVE); }
 	function get_fileshort(){ return 'phoenix.json'; }
 
-	function load_settings($file=NULL){
+	function load_settings($file=NULL, $flag=TRUE){
 		if(is_array($file)){ $this->settings = $file; }
 		else{
-			if($file === NULL){ $file = Phoenix::get_root().Phoenix::get_fileshort(); }
-			if(!file_exists($file)){ return FALSE; }
+			if($file === NULL){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
+			if(!file_exists($file) || substr(strtolower($file), (strlen(self::get_fileshort())*-1)) !== self::get_fileshort() ){ return FALSE; }
 			$this->settings = json_decode(file_get_contents($file), TRUE);
 		}
 
@@ -57,9 +61,9 @@ class Phoenix {
 	function change_src($src){
 		$this->src = $src;
 	}
-	function save_settings($file=NULL){
+	function save_settings($file=NULL, $flag=TRUE){
 		if($this->is_enabled()){
-			if($file === NULL){ $file = Phoenix::get_root().Phoenix::get_fileshort(); }
+			if($file === NULL){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
 			return file_put_contens($file, json_encode($this->settings));
 		}
 		return FALSE;
@@ -95,8 +99,8 @@ class Phoenix {
 		/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
 		if($to === FALSE){ $to = (
 				is_array($conf) && isset($conf['repository'])
-				? dirname($this->root).'/'.$conf['repository'].(isset($conf['last-commit']['sha']) ? '-'.$conf['last-commit']['sha'] : NULL).'.zip'
-				: $this->root.basename($this->get_src())
+				? PHOENIX_ARCHIVE.$conf['repository'].(isset($conf['last-commit']['sha']) ? '-'.$conf['last-commit']['sha'] : NULL).'.zip'
+				: PHOENIX_ARCHIVE.basename($this->get_src())
 			); }
 		$buffer = file_get_contents($this->get_src());
 		file_put_contents($to, $buffer);
