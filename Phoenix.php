@@ -134,16 +134,30 @@ class Phoenix {
 	}
 
 	function update($save_settings=FALSE){ return self::upgrade(FALSE, $save_settings); }
-	function git_pull($autocreate=FALSE, $save_settings=FALSE){ return self::upgrade($autocreate, $save_settings); }
+	function git_pull($autocreate=FALSE, $save_settings=FALSE){
+		if(self::git_enabled()){
+			return system('git pull');
+			//return self::upgrade($autocreate, $save_settings);
+		} else { return FALSE; }
+	}
 	function upgrade($autocreate=FALSE, $save_settings=FALSE){
 		if($this->is_enabled()){
-			/* gets $this->src (download, unpack) and replaces $this->src */
-			$this->install($this->download(), TRUE);
+			if(self::git_enabled()){ self::git_pull(); }
+			else{
+				/* gets $this->src (download, unpack) and replaces $this->src */
+				$this->install($this->download(), TRUE);
+			}
 			if($save_settings !== FALSE){ $this->save_settings(); }
 		}
 	}
 
-	function git_clone($archive, $uninstall_first=FALSE){ return self::install($archive, $uninstall_first); }
+	function git_clone($archive, $uninstall_first=FALSE){
+		if(self::git_enables()){
+			return system('git clone '.($src));
+		} else {
+			return self::install($archive, $uninstall_first);
+		}
+	}
 	function install($archive, $uninstall_first=FALSE){
 		if(!file_exists($archive) && !preg_match("#[\.](zip)$#i", $archive)){ return FALSE; }
 		if($this->is_enabled()){
