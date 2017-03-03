@@ -90,6 +90,9 @@ class Phoenix {
 		}
 		return FALSE;
 	}
+	function getMountByIndex($i){
+		return (isset($this->settings[$i]['mount']) ? $this->settings[$i]['mount'] : (isset($this->settings[$i]['type']) ? $this->get_framework_root($this->settings[$i]['type']) :  NULL));
+	}
 
 	function get_backup($id=0){
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
@@ -134,15 +137,18 @@ class Phoenix {
 	}
 
 	function update($save_settings=FALSE){ return self::upgrade(FALSE, $save_settings); }
-	function git_pull($autocreate=FALSE, $save_settings=FALSE){
+	function git_pull($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){
 		if(self::git_enabled()){
-			return system('git pull');
-			//return self::upgrade($autocreate, $save_settings);
+			$index = $this->getIndexByName($archive);
+			$mount = $this->getMountByIndex($index);
+			//$mount = $this->settings[$index]['mount'];
+			# return system('git -C '.$mount.' pull);
+			//*alternate of:*/ return self::upgrade($archive, $autocreate, $save_settings);
 		} else { return FALSE; }
 	}
-	function upgrade($autocreate=FALSE, $save_settings=FALSE){
+	function upgrade($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){
 		if($this->is_enabled()){
-			if(self::git_enabled()){ self::git_pull(); }
+			if(self::git_enabled()){ self::git_pull($archive); }
 			else{
 				/* gets $this->src (download, unpack) and replaces $this->src */
 				$this->install($this->download(), TRUE);
@@ -152,8 +158,11 @@ class Phoenix {
 	}
 
 	function git_clone($archive, $uninstall_first=FALSE){
-		if(self::git_enables()){
-			return system('git clone '.($src));
+		if(self::git_enabled()){
+			$index = $this->getIndexByName($archive);
+			$mount = $this->getMountByIndex($index);
+			$data = self::get_github_data($src);
+			# return system('git -C '.$mount.' clone '.$data['clone']);
 		} else {
 			return self::install($archive, $uninstall_first);
 		}
@@ -162,15 +171,18 @@ class Phoenix {
 		if(!file_exists($archive) && !preg_match("#[\.](zip)$#i", $archive)){ return FALSE; }
 		if($this->is_enabled()){
 			if($uninstall_first !== FALSE){ $this->uninstall($this->root, TRUE, TRUE); }
-			$zip = new ZipArchive;
-			$res = $zip->open($archive);
-			if($res === TRUE){
-				$zip->extractTo($this->root); //, $files
-				$zip->close();
-				$only = $this->_find_one_directory_only($this->root, TRUE);
-				print '<!-- '.$only.' -->';
-				if($only !== FALSE){ $this->_move_up_one_directory($this->root.$only.'/', TRUE); }
-				return TRUE;
+			if(self::git_enabled()){ return self::git_clone($archive); }
+			else{
+				$zip = new ZipArchive;
+				$res = $zip->open($archive);
+				if($res === TRUE){
+					$zip->extractTo($this->root); //, $files
+					$zip->close();
+					$only = $this->_find_one_directory_only($this->root, TRUE);
+					print '<!-- '.$only.' -->';
+					if($only !== FALSE){ $this->_move_up_one_directory($this->root.$only.'/', TRUE); }
+					return TRUE;
+				}
 			}
 		}
 		return FALSE;
