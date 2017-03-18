@@ -388,9 +388,40 @@ class Phoenix {
 		}
 		return $db;
 	}
-	function fingerprint_diff($old=array(), $new=array()){
+	function fingerprint_diff($old=array(), $new=array(), $compare=0xFF){
 		$diff = array();
+		$list = array_unique(array_merge(self::_get_file_s($old), self::_get_file_s($new)));
+		foreach($list as $i=>$f){
+			$diff[$i] = array('file' => $f, 'advise' => 'hold');
+			$oc = self::_get_file_entry($f, $old);
+			$nc = self::_get_file_entry($f, $new);
+			/*debug*/ $diff[$i]['old'] = $oc; $diff[$i]['new'] = $nc;
+			if(TRUE && !isset($oc['size']) ){ $diff[$i]['advise'] = 'create'; $diff[$i]['reason'][] = 'exist'; }
+			if(TRUE && !isset($nc['size']) ){ $diff[$i]['advise'] = 'delete'; $diff[$i]['reason'][] = 'exist'; }
+			if(TRUE && self::_has_variable_both('size', $oc, $nc) && ($nc['size'] != $oc['size']) ){ $diff[$i]['advise'] = 'inspect'; $diff[$i]['reason'][] = 'size'; }
+			if(TRUE && self::_has_variable_both('md5', $oc, $nc) && ($nc['md5'] != $oc['md5']) ){ $diff[$i]['advise'] = 'inspect'; $diff[$i]['reason'][] = 'md5'; }
+			if(TRUE && self::_has_variable_both('sha1', $oc, $nc) && ($nc['sha1'] != $oc['sha1']) ){ $diff[$i]['advise'] = 'inspect'; $diff[$i]['reason'][] = 'sha1'; }
+			if(TRUE && self::_has_variable_both('mtime', $oc, $nc) && ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) ){ $diff[$i]['advise'] = ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback');  $diff[$i]['reason'][] = 'mtime'; }
+		}
 		return $diff;
+	}
+	private /*bool*/ function _has_variable_both($var=NULL, $first=array(), $second=array()){
+		return (isset($first[$var]) && isset($second[$var]));
+	}
+	private function _get_file_entry($file=NULL, $db=array()){
+		foreach($db as $i=>$f){
+			if($f['file'] == $file){
+				return $f;
+			}
+		}
+		return array('file' => $file);
+	}
+	private function _get_file_s($first=array()){
+		$list = array();
+		foreach($first as $i=>$f){
+			if(!in_array($f['file'], $list)){ $list[] = $f['file']; }
+		}
+		return $list;
 	}
 }
 function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){
