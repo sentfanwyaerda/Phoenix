@@ -3,14 +3,22 @@ if(file_exists(dirname(dirname(__FILE__)).'/Heracles/Heracles.php')){ require_on
 if(!defined('PHOENIX_ARCHIVE')){ define('PHOENIX_ARCHIVE', dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR); }
 if(!defined('PHOENIX_FRAMEWORK')){ define('PHOENIX_FRAMEWORK', FALSE); }
 
-define('PHOENIX_COMPARE_ALL', 0xFF);
-define('PHOENIX_COMPARE_EXISTS', 0x01);
-define('PHOENIX_COMPARE_DELETED', 0x10);
-define('PHOENIX_COMPARE_SIZE', 0x02);
-define('PHOENIX_COMPARE_MTIME', 0x04);
-define('PHOENIX_COMPARE_MD5', 0x08);
-define('PHOENIX_COMPARE_SHA1', 0x80);
+define('PHOENIX_COMPARE_ALL', 0x0FF);
+define('PHOENIX_COMPARE_EXISTS', 0x001);
+define('PHOENIX_COMPARE_DELETED', 0x010);
+define('PHOENIX_COMPARE_SIZE', 0x002);
+define('PHOENIX_COMPARE_MTIME', 0x004);
+define('PHOENIX_COMPARE_MTIME_RENEW', 0x044);
+define('PHOENIX_COMPARE_MD5', 0x008);
+define('PHOENIX_COMPARE_SHA1', 0x080);
 define('PHOENIX_COMPARE_HASH', (PHOENIX_COMPARE_MD5 + PHOENIX_COMPARE_SHA1) );
+
+define('PHOENIX_HOLD', 0x000);
+define('PHOENIX_UPGRADE', 0x100);
+define('PHOENIX_CREATE', 0x101);
+define('PHOENIX_DELETE', 0x310);
+define('PHOENIX_ROLLBACK', 0x400);
+define('PHOENIX_INSPECT', 0x800);
 
 class Phoenix {
 	var $name = NULL;
@@ -397,8 +405,9 @@ class Phoenix {
 		}
 		return $db;
 	}
-	function fingerprint_diff($old=array(), $new=array(), $compare=0xFF){
-		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? 0xFF : 0x00); }
+	function fingerprint_compare($old=array(), $new=array(), $compare=0x0FF){ return self::fingerprint_diff($old, $new, $compare); }
+	function fingerprint_diff($old=array(), $new=array(), $compare=0x0FF){
+		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? 0x0FF : 0x000); }
 		$diff = array();
 		$list = array_unique(array_merge(self::_get_file_s($old, TRUE), self::_get_file_s($new, TRUE)));
 		foreach($list as $i=>$f){
@@ -406,12 +415,20 @@ class Phoenix {
 			$oc = self::_get_file_entry($f, $old);
 			$nc = self::_get_file_entry($f, $new);
 			/*debug*/ $diff[$i]['old'] = $oc; $diff[$i]['new'] = $nc;
-			if(($compare & PHOENIX_COMPARE_EXISTS /*0x01*/ ) && !isset($oc['size']) ){ $diff[$i]['hint'] = 'create'; $diff[$i]['reason'][] = 'existence'; }
-			if(($compare & PHOENIX_COMPARE_DELETED /*0x10*/ ) && !isset($nc['size']) ){ $diff[$i]['hint'] = 'delete'; $diff[$i]['reason'][] = 'existence'; }
-			if(($compare & PHOENIX_COMPARE_SIZE /*0x02*/ ) && self::_has_variable_both('size', $oc, $nc) && ($nc['size'] != $oc['size']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'size'; }
-			if(($compare & PHOENIX_COMPARE_MD5 /*0x08*/ ) && self::_has_variable_both('md5', $oc, $nc) && ($nc['md5'] != $oc['md5']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'md5'; }
-			if(($compare & PHOENIX_COMPARE_SHA1 /*0x80*/ ) && self::_has_variable_both('sha1', $oc, $nc) && ($nc['sha1'] != $oc['sha1']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'sha1'; }
-			if(($compare & PHOENIX_COMPARE_MTIME /*0x04*/ ) && self::_has_variable_both('mtime', $oc, $nc) && ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) ){ $diff[$i]['hint'] = ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback');  $diff[$i]['reason'][] = 'mtime'; }
+			if(($compare & PHOENIX_COMPARE_EXISTS /*0x001*/ ) && !isset($oc['size']) ){ $diff[$i]['hint'] = 'create'; $diff[$i]['reason'][] = 'existence'; }
+			if(($compare & PHOENIX_COMPARE_DELETED /*0x010*/ ) && !isset($nc['size']) ){ $diff[$i]['hint'] = 'delete'; $diff[$i]['reason'][] = 'existence'; }
+			if(($compare & PHOENIX_COMPARE_SIZE /*0x002*/ ) && self::_has_variable_both('size', $oc, $nc) && ($nc['size'] != $oc['size']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'size'; }
+			if(($compare & PHOENIX_COMPARE_MD5 /*0x008*/ ) && self::_has_variable_both('md5', $oc, $nc) && ($nc['md5'] != $oc['md5']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'md5'; }
+			if(($compare & PHOENIX_COMPARE_SHA1 /*0x080*/ ) && self::_has_variable_both('sha1', $oc, $nc) && ($nc['sha1'] != $oc['sha1']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'sha1'; }
+			/* ($oc['mtime'] <=> $nc['mtime'])!=0 *//* !($oc['mtime']==$nc['mtime']) *//* ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) */
+			if(($compare & PHOENIX_COMPARE_MTIME /*0x004*/ ) && self::_has_variable_both('mtime', $oc, $nc) && !($oc['mtime']==$nc['mtime']) ){
+				if(($compare & PHOENIX_COMPARE_MTIME_RENEW /*0x044*/ ) && count($diff[$i]['reason'])>=1){
+					$diff[$i]['hint'] = ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback');
+				} else {
+					$diff[$i]['hint'] = 'inspect';
+				}
+				$diff[$i]['reason'][] = 'mtime';
+			}
 		}
 		return $diff;
 	}
