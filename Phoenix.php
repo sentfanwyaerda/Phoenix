@@ -3,6 +3,15 @@ if(file_exists(dirname(dirname(__FILE__)).'/Heracles/Heracles.php')){ require_on
 if(!defined('PHOENIX_ARCHIVE')){ define('PHOENIX_ARCHIVE', dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR); }
 if(!defined('PHOENIX_FRAMEWORK')){ define('PHOENIX_FRAMEWORK', FALSE); }
 
+define('PHOENIX_COMPARE_ALL', 0xFF);
+define('PHOENIX_COMPARE_EXISTS', 0x01);
+define('PHOENIX_COMPARE_DELETED', 0x10);
+define('PHOENIX_COMPARE_SIZE', 0x02);
+define('PHOENIX_COMPARE_MTIME', 0x04);
+define('PHOENIX_COMPARE_MD5', 0x08);
+define('PHOENIX_COMPARE_SHA1', 0x80);
+define('PHOENIX_COMPARE_HASH', (PHOENIX_COMPARE_MD5 + PHOENIX_COMPARE_SHA1) );
+
 class Phoenix {
 	var $name = NULL;
 	var $src = NULL; /* http://www.github.com/ */
@@ -389,19 +398,20 @@ class Phoenix {
 		return $db;
 	}
 	function fingerprint_diff($old=array(), $new=array(), $compare=0xFF){
+		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? 0xFF : 0x00); }
 		$diff = array();
-		$list = array_unique(array_merge(self::_get_file_s($old), self::_get_file_s($new)));
+		$list = array_unique(array_merge(self::_get_file_s($old, TRUE), self::_get_file_s($new, TRUE)));
 		foreach($list as $i=>$f){
-			$diff[$i] = array('file' => $f, 'advise' => 'hold');
+			$diff[$i] = array('file' => $f, 'hint' => 'hold');
 			$oc = self::_get_file_entry($f, $old);
 			$nc = self::_get_file_entry($f, $new);
 			/*debug*/ $diff[$i]['old'] = $oc; $diff[$i]['new'] = $nc;
-			if(TRUE && !isset($oc['size']) ){ $diff[$i]['advise'] = 'create'; $diff[$i]['reason'][] = 'exist'; }
-			if(TRUE && !isset($nc['size']) ){ $diff[$i]['advise'] = 'delete'; $diff[$i]['reason'][] = 'exist'; }
-			if(TRUE && self::_has_variable_both('size', $oc, $nc) && ($nc['size'] != $oc['size']) ){ $diff[$i]['advise'] = 'inspect'; $diff[$i]['reason'][] = 'size'; }
-			if(TRUE && self::_has_variable_both('md5', $oc, $nc) && ($nc['md5'] != $oc['md5']) ){ $diff[$i]['advise'] = 'inspect'; $diff[$i]['reason'][] = 'md5'; }
-			if(TRUE && self::_has_variable_both('sha1', $oc, $nc) && ($nc['sha1'] != $oc['sha1']) ){ $diff[$i]['advise'] = 'inspect'; $diff[$i]['reason'][] = 'sha1'; }
-			if(TRUE && self::_has_variable_both('mtime', $oc, $nc) && ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) ){ $diff[$i]['advise'] = ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback');  $diff[$i]['reason'][] = 'mtime'; }
+			if(($compare & PHOENIX_COMPARE_EXISTS /*0x01*/ ) && !isset($oc['size']) ){ $diff[$i]['hint'] = 'create'; $diff[$i]['reason'][] = 'existence'; }
+			if(($compare & PHOENIX_COMPARE_DELETED /*0x10*/ ) && !isset($nc['size']) ){ $diff[$i]['hint'] = 'delete'; $diff[$i]['reason'][] = 'existence'; }
+			if(($compare & PHOENIX_COMPARE_SIZE /*0x02*/ ) && self::_has_variable_both('size', $oc, $nc) && ($nc['size'] != $oc['size']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'size'; }
+			if(($compare & PHOENIX_COMPARE_MD5 /*0x08*/ ) && self::_has_variable_both('md5', $oc, $nc) && ($nc['md5'] != $oc['md5']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'md5'; }
+			if(($compare & PHOENIX_COMPARE_SHA1 /*0x80*/ ) && self::_has_variable_both('sha1', $oc, $nc) && ($nc['sha1'] != $oc['sha1']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'sha1'; }
+			if(($compare & PHOENIX_COMPARE_MTIME /*0x04*/ ) && self::_has_variable_both('mtime', $oc, $nc) && ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) ){ $diff[$i]['hint'] = ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback');  $diff[$i]['reason'][] = 'mtime'; }
 		}
 		return $diff;
 	}
@@ -416,10 +426,14 @@ class Phoenix {
 		}
 		return array('file' => $file);
 	}
-	private function _get_file_s($first=array()){
+	private function _get_file_s($first=array(), $ignore=FALSE){
 		$list = array();
 		foreach($first as $i=>$f){
-			if(!in_array($f['file'], $list)){ $list[] = $f['file']; }
+			if(!in_array($f['file'], $list)){
+				if( ($ignore === FALSE) || !(strlen($f['file']) == 0 || $f['file'] == '/') ){
+					$list[] = $f['file'];
+				}
+			}
 		}
 		return $list;
 	}
