@@ -38,7 +38,7 @@ When `$src` is within the [GitHub](https://github.com/)-domain, the link can be 
 
 ## Phoenix workflow
 1. Checks if `$mount` exists, to determine if it could already be installed.
-2. If installed; when testing-functionality is available, it tests the functionality of the current install and saves the results.
+2. If installed; checks if current files has been changed since the last update, and when testing-functionality is available, it tests the functionality of the current install and saves the results.
 3. Identifies the target by `$src`. If it is on [Github](http://github.com/) it analyses the current version: gets releases and branches and statistics (issues, forks, stargazers), and data of the current commit (sha, comment, author).
 4. If installed; it determines if update is available and reports a notification.
 5. Phoenix downloads the current release.
@@ -49,7 +49,7 @@ When `$src` is within the [GitHub](https://github.com/)-domain, the link can be 
 
 Currently only steps 3, 5, 7 of the workflow are available and test-worthy.
 
-## Documentation
+# Documentation
 
 ### Phoenix($phoenix_file, $auto=FALSE)
 This function is a configuration short of the *auto upgrade* procedure.
@@ -73,9 +73,18 @@ This function is a configuration short of the *auto upgrade* procedure.
 
 ### Phoenix::download()
 
-### Phoenix::fingerprint()
+### Phoenix::mtime_rollback($mount=NULL, $src=FALSE)
+Sets the `mtime` back in time when an older matching and identical file exists (in an archive). This fixes overwritten files that in fact has not changed.
 
-### Phoenix::fingerprint_diff()
+`$mount` should be a directory. `$src` can be a directory or a zip-file.
+
+### Phoenix::fingerprint($mount, $root=FALSE)
+`$mount` can be a directory or a zip-file.
+
+### Phoenix::fingerprint_diff($old=array(), $new=array(), $compare=0x0FF)
+*alias: `Phoenix::fingerprint_compare()`*
+
+`$old` and `$new` are suspected to be results of `Phoenix::fingerprint()`. It compares both.
 
 ### Phoenix::get_github_data($src)
 
@@ -95,6 +104,8 @@ The constant `PHOENIX_ARCHIVE` sets the directory where all downloaded repositor
 
 ### Phoenix::getIndexByName($archive)
 
+## Handeling Settings
+
 ### [phoenix.json](./phoenix.json)
 ```json
 [
@@ -110,6 +121,8 @@ Saves the settings to [phoenix.json](./phoenix.json).
 
 ### Phoenix::clean_settings()
 Removes additional data to provide an usable [phoenix.json](./phoenix.json) to do a fresh install on an other system.
+
+## Integration with a framework
 
 ### PHOENIX_FRAMEWORK
 Phoenix is designed to work with [Hades](https://github.com/sentfanwyaerda/Hades). But if needed can be integrated into an other logical domain. By default it is set to `FALSE` and does not use a framework at all.

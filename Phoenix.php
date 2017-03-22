@@ -72,10 +72,10 @@ class Phoenix {
 	function get_root($flag=TRUE){ return ($flag === TRUE && isset($this) ? $this->root : PHOENIX_ARCHIVE); }
 	function get_fileshort(){ return 'phoenix.json'; }
 
-	function load_settings($file=NULL, $flag=TRUE){
+	function load_settings($file=FALSE, $flag=TRUE){
 		if(is_array($file)){ $this->settings = $file; }
 		else{
-			if($file === NULL){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
+			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
 			if(!file_exists($file) || substr(strtolower($file), (strlen(self::get_fileshort())*-1)) !== self::get_fileshort() ){ return FALSE; }
 			$this->settings = json_decode(file_get_contents($file), TRUE);
 		}
@@ -90,9 +90,9 @@ class Phoenix {
 	function change_src($src){
 		$this->src = $src;
 	}
-	function save_settings($file=NULL, $flag=TRUE){
+	function save_settings($file=FALSE, $flag=TRUE){
 		if($this->is_enabled()){
-			if($file === NULL){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
+			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
 			return file_put_contens($file, json_encode($this->settings));
 		}
 		return FALSE;
@@ -363,18 +363,21 @@ class Phoenix {
 
 			for($i=0;$i<$zip->numFiles;$i++){
 				$stat[$i] = $zip->statIndex($i);
-				$raw = $zip->getFromIndex($i);
 				$name = (substr($zip->getNameIndex($i), 0, strlen($cleanup)) == $cleanup ? substr($zip->getNameIndex($i), strlen($cleanup) ) : $zip->getNameIndex($i));
 				/*fix*/ $name = (strlen($name) == 0 ? '/' : $name);
-				$db[] = array(
-					'file'=>$name,
-					'size'=>$stat[$i]['size'],
-					'mtime'=>$stat[$i]['mtime'],
-					'mtime:iso8601'=>date('c',$stat[$i]['mtime']),
-					'md5'=> @md5($raw),
-					'sha1'=> @sha1($raw),
-					'comment'=>$zip->getCommentIndex($i)
-				);
+				if(!isset($z[1]) || (preg_match('#^[/]?'.$z[1].'(.*)$#i', '/'.$name, $bx))){
+					if(isset($bx[1])){ $name = $bx[1]; }
+					$raw = $zip->getFromIndex($i);
+					$db[] = array(
+						'file'=>$name,
+						'size'=>$stat[$i]['size'],
+						'mtime'=>$stat[$i]['mtime'],
+						'mtime:iso8601'=>date('c',$stat[$i]['mtime']),
+						'md5'=> @md5($raw),
+						'sha1'=> @sha1($raw),
+						'comment'=>$zip->getCommentIndex($i)
+					);
+				}
 			}
 			//*debug*/ print_r($zip);
 			if($zcreated === TRUE){ unlink('/tmp/'.$zz.'.zip'); }
@@ -407,7 +410,7 @@ class Phoenix {
 	}
 	function fingerprint_compare($old=array(), $new=array(), $compare=0x0FF){ return self::fingerprint_diff($old, $new, $compare); }
 	function fingerprint_diff($old=array(), $new=array(), $compare=0x0FF){
-		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? 0x0FF : 0x000); }
+		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? PHOENIX_COMPARE_ALL : 0x000); }
 		$diff = array();
 		$list = array_unique(array_merge(self::_get_file_s($old, TRUE), self::_get_file_s($new, TRUE)));
 		foreach($list as $i=>$f){
@@ -422,8 +425,8 @@ class Phoenix {
 			if(($compare & PHOENIX_COMPARE_SHA1 /*0x080*/ ) && self::_has_variable_both('sha1', $oc, $nc) && ($nc['sha1'] != $oc['sha1']) ){ $diff[$i]['hint'] = 'inspect'; $diff[$i]['reason'][] = 'sha1'; }
 			/* ($oc['mtime'] <=> $nc['mtime'])!=0 *//* !($oc['mtime']==$nc['mtime']) *//* ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) */
 			if(($compare & PHOENIX_COMPARE_MTIME /*0x004*/ ) && self::_has_variable_both('mtime', $oc, $nc) && !($oc['mtime']==$nc['mtime']) ){
-				if(($compare & PHOENIX_COMPARE_MTIME_RENEW /*0x044*/ ) && count($diff[$i]['reason'])>=1){
-					$diff[$i]['hint'] = ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback');
+				if(($compare & PHOENIX_COMPARE_MTIME_RENEW /*0x044*/ )){
+					$diff[$i]['hint'] = (!is_array($diff[$i]['reason']) || (is_array($diff[$i]['reason']) && count($diff[$i]['reason']) == 0) ? 'mtime_rollback' : ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback'));
 				} else {
 					$diff[$i]['hint'] = 'inspect';
 				}
@@ -453,6 +456,17 @@ class Phoenix {
 			}
 		}
 		return $list;
+	}	
+	function mtime_rollback($mount=NULL, $src=FALSE){
+		/*fix: get $mount, $src */
+		//if(!self::directory_exists($mount) || !(file_exists($src) || self::directory_exists($src)) ){ return FALSE; }
+		$db = self::fingerprint_compare(self::fingerprint($mount), self::fingerprint($src));
+		foreach($db as $i=>$f){
+			if(is_array($f['reason']) && in_array('mtime', $f['reason']) && $f['new']['size'] == $f['old']['size'] && $f['new']['md5'] == $f['old']['md5'] && $f['new']['sha1'] == $f['old']['sha1']){
+				$db[$i]['mtime_rollback'] = touch($mount.$f['file'], ( $f['new']['mtime'] < $f['old']['mtime'] ? $f['new']['mtime'] : $f['old']['mtime'] ));
+			}
+		}
+		return $db;
 	}
 }
 function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){
