@@ -21,9 +21,12 @@ define('PHOENIX_ROLLBACK', 0x400);
 define('PHOENIX_INSPECT', 0x800);
 
 class Phoenix {
+	/*private*/ var $cursor = FALSE;
+	
 	var $name = NULL;
 	var $src = NULL; /* http://www.github.com/ */
 	var $root = FALSE; /* /www/module/ */
+	
 	var $settings = array();
 
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=NULL){
@@ -47,6 +50,22 @@ class Phoenix {
 		if($src !== FALSE && strlen($src) >= 1 ){ $this->change_src( $src ); }
 		/*fix*/ if($this->name === NULL){ $this->name = (is_dir($this->root) ? basename($this->root) : basename(dirname($this->root)) );}
 	}
+
+	function set_cursor($i=NULL, $d=0){
+		if(!is_int($i)){ $i = (is_int($this->cursor) ? $this->cursor : 0); }
+		if(!is_int($d)){ $d = 0; }
+		$this->cursor = ($i + $d);
+		/*recursive fix*/ if($this->cursor < 0){ self::set_cursor( count($this->settings) + $this->cursor ); }
+		/*recursive fix*/ if($this->cursor > 0 && $this->cursor >= count($this->settings)){ self::set_cursor($this->cursor - count($this->settings)); }
+		return $this->cursor;
+	}
+	function next(){ return self::set_cursor(NULL, +1); }
+	function prev(){ return self::set_cursor(NULL, -1); }
+	function reset(){ return self::set_cursor(0); }
+	function end(){ return self::set_cursor(count($this->settings) - 1); }
+	function current(){ return $this->cursor; }
+	function doAll(){ $this->cursor = TRUE; }
+
 	function directory_exists($dir){ return (file_exists($dir) && is_dir($dir)) ; }
 	function is_enabled(){
 		if(!$this->get_src() || !isset($this->root) || strlen($this->root)<=1 || !Phoenix::directory_exists($this->root) ){ return FALSE; }
@@ -109,6 +128,9 @@ class Phoenix {
 	}
 	function getMountByIndex($i){
 		return (isset($this->settings[$i]['mount']) ? $this->settings[$i]['mount'] : (isset($this->settings[$i]['type']) ? $this->get_framework_root($this->settings[$i]['type']) :  NULL));
+	}
+	function getVariableByIndex($i, $var){
+		return $this->settings[$i][$var];
 	}
 
 	function get_backup($id=0){

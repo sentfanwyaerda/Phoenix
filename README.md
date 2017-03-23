@@ -56,10 +56,14 @@ This function is a configuration short of the *auto upgrade* procedure.
 
 ### new Phoenix()
 
-### Phoenix::install()
+`$P = new Phoenix('./phoenix.json');` directly loads a specific `phoenix.json`-file.
+
+`$P = new Phoenix($mount, $src, $force=FALSE);` creates one bare entry to process.
+
+### Phoenix::install($archive)
 *alias: `Phoenix::git_clone()`*
 
-### Phoenix::upgrade($force=FALSE)
+### Phoenix::upgrade($archive, $force=FALSE)
 *alias: `Phoenix::git_pull()`*
 
 ### Phoenix::backup()
@@ -69,7 +73,7 @@ This function is a configuration short of the *auto upgrade* procedure.
 ### Phoenix::revert($to)
 *alias: `Phoenix::restore()`*
 
-### Phoenix::uninstall()
+### Phoenix::uninstall($mount)
 
 ### Phoenix::download()
 
@@ -104,19 +108,47 @@ The constant `PHOENIX_ARCHIVE` sets the directory where all downloaded repositor
 
 ### Phoenix::getIndexByName($archive)
 
+## Navigating the Phoenix database
+
+`Phoenix::next()` `Phoenix::prev()`
+`Phoenix::end()` `Phoenix::reset()` `Phoenix::current()`
+
+### Phoenix::doAll(TRUE)
+Sets the cursor to proces 'all' instead of a particular $index
+
+### Phoenix::set_cursor($i)
+Sets the cursor to a particular $index
+
+### Phoenix::getIndexByName($archive)
+Searches the settings for the matching entry.
+
+### Phoenix::getMountByIndex($i)
+Gives the static $mount or (if available) the $mount result based upon the framework.
+
+### Phoenix::getVariableByIndex($i, 'src')
+This method is an alias of `$P->settings[$i]['src']`.
+
 ## Handeling Settings
 
 ### [phoenix.json](./phoenix.json)
 ```json
 [
-   {"name":"Phoenix","src":"https://github.com/sentfanwyaerda/Phoenix/archive/master.zip","type":"tool","license":{"short":"cc-by-nd"}}
+   {
+      "name":"Phoenix",
+      "src":"https://github.com/sentfanwyaerda/Phoenix/archive/master.zip",
+      "type":"tool",
+      "license":{"short":"cc-by-nd"}
+   }
 ]
 ```
 
-### Phoenix::load_settings()
+### Phoenix::load_settings($file=FALSE)
 Loads the settings from [phoenix.json](./phoenix.json) into the Phoenix-object.
 
-### Phoenix::save_settings()
+### Phoenix::merge_settings($file, $overwrite=TRUE)
+Loads additional settings from an other [phoenix.json](./phoenix.json)-file.
+
+### Phoenix::save_settings($file=FALSE)
 Saves the settings to [phoenix.json](./phoenix.json).
 
 ### Phoenix::clean_settings()
