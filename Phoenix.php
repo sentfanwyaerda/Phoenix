@@ -22,39 +22,37 @@ define('PHOENIX_INSPECT', 0x800);
 
 class Phoenix {
 	/*private*/ var $cursor = FALSE;
-	
-	var $name = NULL;
-	var $src = NULL; /* http://www.github.com/ */
-	var $root = FALSE; /* /www/module/ */
-	
 	var $settings = array();
 
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=NULL){
 		/*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
-		/**/if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
-		/*fix*/if($root === NULL){ $root = dirname(__FILE__).'/'; }
-		/*when $root is archive-name only*/ if(!preg_match('#[/]#i', $root) && strlen($root)>0){ $this->name = $root; $root = dirname(dirname(__FILE__)).'/'.$root.'/';}
+		/*if $root is $phoenix_file*/ if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
+		/*fix*/ if($root === NULL){ $root = dirname(__FILE__).'/'; }
+		$this->load_settings($phoenix_file, TRUE);
+		/*fix*/ if(!is_array($this->settings) || count($this->settings) == 0){ $this->load_settings(NULL, FALSE); }
+		$nid = count($this->settings);
+		/*when $root is archive-name only*/ if(!preg_match('#[/]#i', $root) && strlen($root)>0){ $this->settings[$nid]['name'] = $root; $root = dirname(dirname(__FILE__)).'/'.$root.'/';}
 		if(Phoenix::directory_exists($root)){
-			$this->root = $root;
+			$this->settings[$nid]['mount'] = $root;
 		}
 		elseif($create !== FALSE){
 			if(Phoenix::directory_exists(dirname($root)) && is_writeable(dirname($root)) ){
 				if(!Phoenix::directory_exists($root) && Phoenix::is_authenticated()){
-					mkdir($root, 0777 /*substr(sprintf('%o', fileperms(dirname($root))), -4)*/ );
+					mkdir($root, /*0777*/ substr(sprintf('%o', fileperms(dirname($root))), -4) );
 				}
-				$this->root = $root;
+				$this->settings[$nid]['mount'] = $root;
 			}
 		}
-		$this->load_settings($phoenix_file, TRUE);
-		/*fix*/ if(!is_array($this->settings) || count($this->settings) == 0){ $this->load_settings(NULL, FALSE); }
-		if($src !== FALSE && strlen($src) >= 1 ){ $this->change_src( $src ); }
-		/*fix*/ if($this->name === NULL){ $this->name = (is_dir($this->root) ? basename($this->root) : basename(dirname($this->root)) );}
+		if($src !== FALSE && strlen($src) >= 1 ){ $this->settings[$nid]['src'] = $src; }
+		/*fix*/ if((isset($this->settings[$nid]) && !isset($this->settings[$nid]['name']) ) || $this->settings[$nid]['name'] === NULL){ $this->settings[$nid]['name'] = (is_dir($this->settings[$nid]['mount']) ? basename($this->settings[$nid]['mount']) : basename(dirname($this->settings[$nid]['mount'])) );}
+		/*fix*/ if(isset($this->settings[$nid])){ $this->set_cursor($nid); }
 	}
 
 	function set_cursor($i=NULL, $d=0){
 		if(!is_int($i)){ $i = (is_int($this->cursor) ? $this->cursor : 0); }
 		if(!is_int($d)){ $d = 0; }
-		$this->cursor = ($i + $d);
+		$this->cursor = (int) ($i + $d);
+		/*debug*/ print "\ncursor: ".$this->cursor."\n";
 		/*recursive fix*/ if($this->cursor < 0){ self::set_cursor( count($this->settings) + $this->cursor ); }
 		/*recursive fix*/ if($this->cursor > 0 && $this->cursor >= count($this->settings)){ self::set_cursor($this->cursor - count($this->settings)); }
 		return $this->cursor;
@@ -68,7 +66,7 @@ class Phoenix {
 
 	function directory_exists($dir){ return (file_exists($dir) && is_dir($dir)) ; }
 	function is_enabled(){
-		if(!$this->get_src() || !isset($this->root) || strlen($this->root)<=1 || !Phoenix::directory_exists($this->root) ){ return FALSE; }
+		if(!$this->getVariableByIndex($this->current(), 'src') || !Phoenix::directory_exists($this->getMountByIndex($this->current())) ){ return FALSE; }
 		return $this->is_authenticated();
 	}
 	function is_authenticated(){
@@ -85,13 +83,13 @@ class Phoenix {
 				return $PF->get_root($type);
 			}
 		}
-		return $this->root;
+		return $this->getVariableByIndex($this->current(), 'mount');
 	}
 
-	function get_root($flag=TRUE){ return ($flag === TRUE && isset($this) ? $this->root : PHOENIX_ARCHIVE); }
+	function get_root($flag=TRUE){ return ($flag === TRUE && isset($this) ? $this->getMountByIndex($this->current()) : PHOENIX_ARCHIVE); }
 	function get_fileshort(){ return 'phoenix.json'; }
 
-	function load_settings($file=FALSE, $flag=TRUE){
+	function load_settings($file=FALSE, $flag=FALSE){
 		if(is_array($file)){ $this->settings = $file; }
 		else{
 			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
@@ -99,17 +97,15 @@ class Phoenix {
 			$this->settings = json_decode(file_get_contents($file), TRUE);
 		}
 
-		/*fix*/ if($this->src === NULL && isset($this->settings[0]['src'])){ $this->change_src( $this->settings[0]['src'] ); }
+		//*fix*/ if($this->get_src() === NULL && isset($this->settings[0]['src'])){ $this->change_src( $this->settings[0]['src'] ); }
 	}
+	function merge_settings($file, $overwrite=FALSE){}
 	function get_src(){
-		if(isset($this->src)){ return $this->src; }
+		if(is_int($this->current())){ return $this->getVariableByIndex($this->current(), 'src'); }
 		#if(isset($this->settings['src'])){ return $this->settings['src']; }
 		return FALSE;
 	}
-	function change_src($src){
-		$this->src = $src;
-	}
-	function save_settings($file=FALSE, $flag=TRUE){
+	function save_settings($file=FALSE, $flag=FALSE){
 		if($this->is_enabled()){
 			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
 			return file_put_contens($file, json_encode($this->settings));
@@ -143,12 +139,12 @@ class Phoenix {
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
 	}
 	function cleanup($keep=0){ /*removes all backups except it keeps the last/most-recent $keep backups */ }
-	function get_backup_id($keep=0){
-		$list = scandir($this->root);
+	function get_backup_id($keep=0, $flag=FALSE){
+		$list = scandir($this->get_root($flag));
 		$set = array();
 		foreach($list as $i=>$f){
 			if(preg_match("#[\[]([^\]]+)[\]][.](zip|tgz|tar.gz|bz)$#i", $f, $buffer)){
-				$set[filemtime($this->root.$f)] = $f;
+				$set[filemtime($this->get_root().$f)] = $f;
 			}
 		}
 		ksort($set);
@@ -175,7 +171,7 @@ class Phoenix {
 		return $to;
 	}
 
-	function update($save_settings=FALSE){ return self::upgrade(FALSE, $save_settings); }
+	function update($save_settings=FALSE){ return self::upgrade(FALSE, FALSE, $save_settings); }
 	function git_pull($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){
 		if(self::git_enabled()){
 			$index = $this->getIndexByName($archive);
@@ -189,7 +185,7 @@ class Phoenix {
 		if($this->is_enabled()){
 			if(self::git_enabled()){ self::git_pull($archive); }
 			else{
-				/* gets $this->src (download, unpack) and replaces $this->src */
+				/* gets $this->get_src() (download, unpack) and replaces $this->get_src() */
 				$this->install($this->download(), TRUE);
 			}
 			if($save_settings !== FALSE){ $this->save_settings(); }
@@ -207,19 +203,22 @@ class Phoenix {
 		}
 	}
 	function install($archive, $uninstall_first=FALSE){
-		if(!file_exists($archive) && !preg_match("#[\.](zip)$#i", $archive)){ return FALSE; }
+		if(!file_exists($archive) || !preg_match("#[\.](zip)$#i", $archive)){
+			if($this->getIndexByName($archive)){ $this->set_cursor($this->getIndexByName($archive)); }
+			else { return FALSE; }
+		}
 		if($this->is_enabled()){
-			if($uninstall_first !== FALSE){ $this->uninstall($this->root, TRUE, TRUE); }
+			if($uninstall_first !== FALSE){ $this->uninstall($this->getMountByIndex($this->current()), TRUE, TRUE); }
 			if(self::git_enabled()){ return self::git_clone($archive); }
 			else{
 				$zip = new ZipArchive;
 				$res = $zip->open($archive);
 				if($res === TRUE){
-					$zip->extractTo($this->root); //, $files
+					$zip->extractTo($this->getMountByIndex($this->current())); //, $files
 					$zip->close();
-					$only = $this->_find_one_directory_only($this->root, TRUE);
+					$only = $this->_find_one_directory_only($this->getMountByIndex($this->current()), TRUE);
 					print '<!-- '.$only.' -->';
-					if($only !== FALSE){ $this->_move_up_one_directory($this->root.$only.'/', TRUE); }
+					if($only !== FALSE){ $this->_move_up_one_directory($this->getMountByIndex($this->current()).$only.'/', TRUE); }
 					return TRUE;
 				}
 			}
@@ -258,8 +257,8 @@ class Phoenix {
 	}
 
 	function uninstall($dir=NULL, $recursive=TRUE, $keep_archives=TRUE){
-		/*fix*/ if($dir === NULL){ $dir = $this->root; }
-		if(!preg_match("#^(".$this->root.")#i", $dir)){ return FALSE; }
+		/*fix*/ if($dir === NULL){ $dir = $this->get_root(); }
+		if(!preg_match("#^(".$this->get_root().")#i", $dir)){ return FALSE; }
 		if($this->is_enabled()){
 			$list = scandir($dir);
 			foreach($list as $i=>$f){
@@ -280,7 +279,7 @@ class Phoenix {
 
 
 	function get_github_data($src=FALSE, $magic=TRUE/*array()*/){
-		if(isset($this) && $src===FALSE){ $src = $this->src; }
+		if(isset($this) && $src===FALSE){ $src = $this->get_src(); }
 		/*fix*/if(!($magic === TRUE) && !is_array($magic)){ $magic = array($magic); }
 		$end = '€'; $end2 = '¤';
 
