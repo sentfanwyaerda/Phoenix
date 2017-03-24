@@ -21,8 +21,8 @@ define('PHOENIX_ROLLBACK', 0x400);
 define('PHOENIX_INSPECT', 0x800);
 
 class Phoenix {
-	/*private*/ var $cursor = FALSE;
-	var $settings = array();
+	private $cursor = FALSE;
+	private $settings = array();
 
 	/* allowed are new Phoenix($phoenix_file); new Phoenix($archive); new Phoenix($archive, FALSE, $create, $phoenix_file); and new Phoenix($mount, $src, $create, $phoenix_file); */
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
@@ -260,7 +260,7 @@ class Phoenix {
 		}
 		return FALSE;
 	}
-	/*private*/ function _find_one_directory_only($dir, $ignore_archives=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+	private function _find_one_directory_only($dir, $ignore_archives=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
 		$list = scandir($dir);
 		$set = array();
@@ -278,7 +278,7 @@ class Phoenix {
 		}
 		return end($set);
 	}
-	/*private*/ function _move_up_one_directory($dir, $remove=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+	private function _move_up_one_directory($dir, $remove=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
 		$list = scandir($dir);
 		foreach($list as $i=>$f){
@@ -370,13 +370,13 @@ class Phoenix {
 		}
 		else { return FALSE; }
 	}
-	/*private*/ function _get_value_of_span($str=NULL, $class=FALSE){
+	private function _get_value_of_span($str=NULL, $class=FALSE){
 		if(preg_match('#[\<]span'.($class!==FALSE ? '(\sclass="'.$class.'")' : '(\s[^\>]+)?').'[\>]([^\<]+)[\<]/span[\>]#i', $str, $buffer)){
 			return $buffer[2];
 		}
 		return $str;
 	}
-	/*private*/ function _get_github_tags($list, $tagstr='tags', $page_raw=FALSE){
+	private function _get_github_tags($list, $tagstr='tags', $page_raw=FALSE){
 		$res = array();
 		$end = '€'; $end2 = '¤';
 		if($page_raw === FALSE || strlen($page_raw) < 1){ $page_raw = file_get_contents($list['page']); $page_raw = str_replace('</a>', $end, $page_raw); }
@@ -482,7 +482,7 @@ class Phoenix {
 			/* ($oc['mtime'] <=> $nc['mtime'])!=0 *//* !($oc['mtime']==$nc['mtime']) *//* ($nc['mtime'] < $oc['mtime'] || $nc['mtime'] > $oc['mtime']) */
 			if(($compare & PHOENIX_COMPARE_MTIME /*0x004*/ ) && self::_has_variable_both('mtime', $oc, $nc) && !($oc['mtime']==$nc['mtime']) ){
 				if(($compare & PHOENIX_COMPARE_MTIME_RENEW /*0x044*/ )){
-					$diff[$i]['hint'] = (!is_array($diff[$i]['reason']) || (is_array($diff[$i]['reason']) && count($diff[$i]['reason']) == 0) ? 'mtime_rollback' : ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback'));
+					$diff[$i]['hint'] = (!is_array($diff[$i]['reason']) || (is_array($diff[$i]['reason']) && count($diff[$i]['reason']) == 0) ? ($nc['mtime'] > $oc['mtime'] ? $diff[$i]['hint'] : 'mtime_rollback') : ($nc['mtime'] > $oc['mtime'] ? 'upgrade' : 'rollback'));
 				} else {
 					$diff[$i]['hint'] = 'inspect';
 				}
@@ -491,10 +491,10 @@ class Phoenix {
 		}
 		return $diff;
 	}
-	/*private*/ /*bool*/ function _has_variable_both($var=NULL, $first=array(), $second=array()){
+	private /*bool*/ function _has_variable_both($var=NULL, $first=array(), $second=array()){
 		return (isset($first[$var]) && isset($second[$var]));
 	}
-	/*private*/ function _get_file_entry($file=NULL, $db=array()){
+	private function _get_file_entry($file=NULL, $db=array()){
 		foreach($db as $i=>$f){
 			if($f['file'] == $file){
 				return $f;
@@ -502,7 +502,7 @@ class Phoenix {
 		}
 		return array('file' => $file);
 	}
-	/*private*/ function _get_file_s($first=array(), $ignore=FALSE){
+	private function _get_file_s($first=array(), $ignore=FALSE){
 		$list = array();
 		foreach($first as $i=>$f){
 			if(!in_array($f['file'], $list)){
@@ -514,12 +514,13 @@ class Phoenix {
 		return $list;
 	}	
 	function mtime_rollback($mount=NULL, $src=FALSE){
+		if($src === FALSE && $mount !== NULL && !is_bool($this->current())){ $file_only = $mount; $mount = NULL; } else { $file_only = NULL; }
 		if($mount === NULL && $src === FALSE){
 			if(is_bool($this->current())){
 				$c = $this->current(); $res = array();
 				$this->reset();
 				for($i=0;$i<$this->length();$i++){
-					$res[$i] = $this->mtime_rollback();
+					$res[$i] = $this->mtime_rollback($file_only);
 					$this->next();
 				}
 				$this->doAll($c);
@@ -533,7 +534,8 @@ class Phoenix {
 		//if(!self::directory_exists($mount) || !(file_exists($src) || self::directory_exists($src)) ){ return FALSE; }
 		$db = self::fingerprint_compare(self::fingerprint($mount), self::fingerprint($src));
 		foreach($db as $i=>$f){
-			if(is_array($f['reason']) && in_array('mtime', $f['reason']) && $f['new']['size'] == $f['old']['size'] && $f['new']['md5'] == $f['old']['md5'] && $f['new']['sha1'] == $f['old']['sha1']){
+			if($f['hint'] == 'mtime_rollback' && ($file_only === NULL || $file_only == $f['file']) ){
+			//if(is_array($f['reason']) && in_array('mtime', $f['reason']) && $f['new']['size'] == $f['old']['size'] && $f['new']['md5'] == $f['old']['md5'] && $f['new']['sha1'] == $f['old']['sha1']){
 				$db[$i]['mtime_rollback'] = touch($mount.$f['file'], ( $f['new']['mtime'] < $f['old']['mtime'] ? $f['new']['mtime'] : $f['old']['mtime'] ));
 			}
 		}
