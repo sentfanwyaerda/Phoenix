@@ -20,6 +20,8 @@ define('PHOENIX_DELETE', 0x310);
 define('PHOENIX_ROLLBACK', 0x400);
 define('PHOENIX_INSPECT', 0x800);
 
+define('PHOENIX_GITHUB_LIFESPAN', 3600 /*seconds*/ );
+
 class Phoenix {
 	private $cursor = FALSE;
 	private $settings = array();
@@ -194,7 +196,7 @@ class Phoenix {
 	function stall(){ /* /!\ dummy: no code provided, yet */
 	}
 
-	function download($to=FALSE, $conf=array()){ /* /!\ experimental: could operate in an other fashion then specified */
+	function download($to=FALSE, $conf=array()){ /* &check; useable! */
 		if(is_bool($this->current())){
 			$c = $this->current(); $res = array();
 			$this->reset();
@@ -208,18 +210,20 @@ class Phoenix {
 		else{
 			/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
 			if($to === FALSE && $conf == array() && preg_match('#^http[s]?\:\/\/(www\.)?github\.com#', $this->get_src())){ $conf = $this->get_github_data($this->get_src()); }
+			$src = (is_array($conf) && isset($conf['download']) ? $conf['download'] : $this->get_src() );
 			if($to === FALSE){ $to = (
 					is_array($conf) && isset($conf['repository'])
 					? PHOENIX_ARCHIVE.$conf['repository'].(isset($conf['last-commit']['sha']) ? '-'.$conf['last-commit']['sha'] : NULL).'.zip'
-					: PHOENIX_ARCHIVE.basename($this->get_src())
+					: PHOENIX_ARCHIVE.basename($src)
 				); }
+			//*debug*/ print '<!-- '.$this->get_src().' | '.$src.' === '.$to.' -->';
 			if(!file_exists($to)){
-				$buffer = file_get_contents($this->get_src());
+				$buffer = file_get_contents($src);
 				file_put_contents($to, $buffer);
 				chmod($to, 0777);
 			}
 			/*fix*/ if(isset($conf['directory'])){ $to = $to.'#/'.$conf['directory']; }
-			$this->buffer[md5($this->get_src())] = $to;
+			if(!isset($this->buffer[md5($this->get_src())]) || $this->buffer[md5($this->get_src())] != $to){ $this->buffer['_created_'][md5($this->get_src())] = microtime(TRUE); $this->buffer[md5($this->get_src())] = $to; }
 			return $to;
 		}
 	}
@@ -333,7 +337,7 @@ class Phoenix {
 
 	function get_github_data($src=FALSE, $magic=TRUE/*array()*/){ /* /!\ unstable: when GitHub changes their website, this script can break! */
 		if(isset($this) && $src===FALSE){ $src = $this->get_src(); }
-		$hash = md5($src.print_r($magic, TRUE)); if(isset($this) && isset($this->buffer[$hash])){ return $this->buffer[$hash]; }
+		$hash = md5($src.print_r($magic, TRUE)); if(isset($this) && isset($this->buffer[$hash]) && $this->buffer['_created_'][$hash] >= (microtime(TRUE)-PHOENIX_GITHUB_LIFESPAN) ){ return $this->buffer[$hash]; }
 		/*fix*/if(!($magic === TRUE) && !is_array($magic)){ $magic = array($magic); }
 		$end = '€'; $end2 = '¤';
 
@@ -386,7 +390,7 @@ class Phoenix {
 			if($magic === TRUE || in_array('branches', $magic)){
 				$list['branches'] = self::_get_github_tags($list, 'branches', $page_raw);
 			}
-			/*create buffer*/ if(isset($this)){ $this->buffer[$hash] = $list; }
+			/*create buffer*/ if(isset($this)){ $this->buffer['_created_'][$hash] = microtime(TRUE); $this->buffer[$hash] = $list; }
 			return $list;
 		}
 		else { return FALSE; }
