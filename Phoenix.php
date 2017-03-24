@@ -133,7 +133,7 @@ class Phoenix {
 		return FALSE;
 	}
 	function get_src(){
-		return $this->getVariableByIndex($this->current(), 'src'); }
+		return $this->getVariableByIndex($this->current(), 'src');
 	}
 	function save_settings($file=FALSE, $flag=FALSE){
 		if($this->is_enabled()){
@@ -260,7 +260,7 @@ class Phoenix {
 		}
 		return FALSE;
 	}
-	private function _find_one_directory_only($dir, $ignore_archives=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+	/*private*/ function _find_one_directory_only($dir, $ignore_archives=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
 		$list = scandir($dir);
 		$set = array();
@@ -278,7 +278,7 @@ class Phoenix {
 		}
 		return end($set);
 	}
-	private function _move_up_one_directory($dir, $remove=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+	/*private*/ function _move_up_one_directory($dir, $remove=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
 		$list = scandir($dir);
 		foreach($list as $i=>$f){
@@ -491,10 +491,10 @@ class Phoenix {
 		}
 		return $diff;
 	}
-	private /*bool*/ function _has_variable_both($var=NULL, $first=array(), $second=array()){
+	/*private*/ /*bool*/ function _has_variable_both($var=NULL, $first=array(), $second=array()){
 		return (isset($first[$var]) && isset($second[$var]));
 	}
-	private function _get_file_entry($file=NULL, $db=array()){
+	/*private*/ function _get_file_entry($file=NULL, $db=array()){
 		foreach($db as $i=>$f){
 			if($f['file'] == $file){
 				return $f;
@@ -502,7 +502,7 @@ class Phoenix {
 		}
 		return array('file' => $file);
 	}
-	private function _get_file_s($first=array(), $ignore=FALSE){
+	/*private*/ function _get_file_s($first=array(), $ignore=FALSE){
 		$list = array();
 		foreach($first as $i=>$f){
 			if(!in_array($f['file'], $list)){
