@@ -23,6 +23,7 @@ define('PHOENIX_INSPECT', 0x800);
 class Phoenix {
 	private $cursor = FALSE;
 	private $settings = array();
+	private $buffer = array();
 
 	/* allowed are new Phoenix($phoenix_file); new Phoenix($archive); new Phoenix($archive, FALSE, $create, $phoenix_file); and new Phoenix($mount, $src, $create, $phoenix_file); */
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
@@ -194,16 +195,33 @@ class Phoenix {
 	}
 
 	function download($to=FALSE, $conf=array()){ /* /!\ experimental: could operate in an other fashion then specified */
-		/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
-		if($to === FALSE){ $to = (
-				is_array($conf) && isset($conf['repository'])
-				? PHOENIX_ARCHIVE.$conf['repository'].(isset($conf['last-commit']['sha']) ? '-'.$conf['last-commit']['sha'] : NULL).'.zip'
-				: PHOENIX_ARCHIVE.basename($this->get_src())
-			); }
-		$buffer = file_get_contents($this->get_src());
-		file_put_contents($to, $buffer);
-		chmod($to, 0777);
-		return $to;
+		if(is_bool($this->current())){
+			$c = $this->current(); $res = array();
+			$this->reset();
+			for($i=0;$i<$this->length();$i++){
+				$res[$i] = $this->download($to, $conf);
+				$this->next();
+			}
+			$this->doAll($c);
+			return $res;
+		}
+		else{
+			/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
+			if($to === FALSE && $conf == array() && preg_match('#^http[s]?\:\/\/(www\.)?github\.com#', $this->get_src())){ $conf = $this->get_github_data($this->get_src()); }
+			if($to === FALSE){ $to = (
+					is_array($conf) && isset($conf['repository'])
+					? PHOENIX_ARCHIVE.$conf['repository'].(isset($conf['last-commit']['sha']) ? '-'.$conf['last-commit']['sha'] : NULL).'.zip'
+					: PHOENIX_ARCHIVE.basename($this->get_src())
+				); }
+			if(!file_exists($to)){
+				$buffer = file_get_contents($this->get_src());
+				file_put_contents($to, $buffer);
+				chmod($to, 0777);
+			}
+			/*fix*/ if(isset($conf['directory'])){ $to = $to.'#/'.$conf['directory']; }
+			$this->buffer[md5($this->get_src())] = $to;
+			return $to;
+		}
 	}
 
 	function update($save_settings=FALSE){ return self::upgrade(FALSE, FALSE, $save_settings); }
@@ -315,6 +333,7 @@ class Phoenix {
 
 	function get_github_data($src=FALSE, $magic=TRUE/*array()*/){ /* /!\ unstable: when GitHub changes their website, this script can break! */
 		if(isset($this) && $src===FALSE){ $src = $this->get_src(); }
+		$hash = md5($src.print_r($magic, TRUE)); if(isset($this) && isset($this->buffer[$hash])){ return $this->buffer[$hash]; }
 		/*fix*/if(!($magic === TRUE) && !is_array($magic)){ $magic = array($magic); }
 		$end = '€'; $end2 = '¤';
 
@@ -332,6 +351,7 @@ class Phoenix {
 			$list['issues'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/issues';
 			$list['contributors'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/graphs/contributors';
 			$list['wiki'] = $list['protocol'].'://'.$list['webprefix'].$list['domain'].'/'.$list['author'].'/'.$list['repository'].'/wiki';
+			$list['directory'] = $list['repository'].'-'.(isset($list['branch']) ? $list['branch'] : 'master').'/';
 
 			if($magic === TRUE || in_array('stats', $magic)){
 				$list['stats'] = array();
@@ -366,6 +386,7 @@ class Phoenix {
 			if($magic === TRUE || in_array('branches', $magic)){
 				$list['branches'] = self::_get_github_tags($list, 'branches', $page_raw);
 			}
+			/*create buffer*/ if(isset($this)){ $this->buffer[$hash] = $list; }
 			return $list;
 		}
 		else { return FALSE; }
@@ -396,32 +417,36 @@ class Phoenix {
 		/*fix*/ if(substr($dir, -1) != '/'){ $dir .= '/';}
 		$db = array();
 		if(preg_match('#\.zip#i', $root)){
+			/*fix*/ if(isset($this->buffer[md5($root)])){ $root = $this->buffer[md5($root)]; }
 			$z = explode('.zip', $root);
 			$zz = md5($z[0]).'-'.sha1($z['0']);
-			if(!file_exists('/tmp/'.$zz.'.zip')){
-				file_put_contents('/tmp/'.$zz.'.zip', file_get_contents($z[0].'.zip'));
+			$tmpfile = '/tmp/'.$zz.'.zip';
+			if(preg_match('#^(http[s]?|ftp)\:\/\/#', $z[0].'.zip') && !file_exists($tmpfile)){
+				file_put_contents($tmpfile, file_get_contents($z[0].'.zip'));
 				$zcreated = TRUE;
-			} else { $zcreated = FALSE; }
+			} else { $zcreated = FALSE; $tmpfile = $z[0].'.zip'; }
 
 			/*fix*/ $cleanup = (preg_match('#^https\://github\.com/[^/]+/([^/]+)/archive/(.*)$#', $z['0'], $q) ? $q[1].'-'.$q[2].'/' : NULL);
 
-			$db['/tmp/'.$zz.'.zip']['src'] = $z[0].'.zip';
-			$db['/tmp/'.$zz.'.zip']['size'] = filesize('/tmp/'.$zz.'.zip');
-			$db['/tmp/'.$zz.'.zip']['mtime'] = filemtime('/tmp/'.$zz.'.zip');
-			$db['/tmp/'.$zz.'.zip']['mtime:iso8601'] = date('c', filemtime('/tmp/'.$zz.'.zip'));
-			$db['/tmp/'.$zz.'.zip']['md5'] = @md5_file('/tmp/'.$zz.'.zip');
-			$db['/tmp/'.$zz.'.zip']['sha1'] = @sha1_file('/tmp/'.$zz.'.zip');
-			/*fix*/ $db['/tmp/'.$zz.'.zip']['clear'] = $cleanup;
+			/*fix*/ $z[1] = preg_replace('#^[\#]?[\/]?#', '', $z[1]);
+
+			$db[$tmpfile]['src'] = $tmpfile;
+			$db[$tmpfile]['size'] = filesize($tmpfile);
+			$db[$tmpfile]['mtime'] = filemtime($tmpfile);
+			$db[$tmpfile]['mtime:iso8601'] = date('c', filemtime($tmpfile));
+			$db[$tmpfile]['md5'] = @md5_file($tmpfile);
+			$db[$tmpfile]['sha1'] = @sha1_file($tmpfile);
+			/*fix*/ $db[$tmpfile]['clear'] = $cleanup;
 
 			$zip = new ZipArchive;
-			$zip->open('/tmp/'.$zz.'.zip');
-			$db['/tmp/'.$zz.'.zip']['comment'] = $zip->getArchiveComment();
+			$zip->open($tmpfile);
+			$db[$tmpfile]['comment'] = $zip->getArchiveComment();
 
 			for($i=0;$i<$zip->numFiles;$i++){
 				$stat[$i] = $zip->statIndex($i);
 				$name = (substr($zip->getNameIndex($i), 0, strlen($cleanup)) == $cleanup ? substr($zip->getNameIndex($i), strlen($cleanup) ) : $zip->getNameIndex($i));
 				/*fix*/ $name = (strlen($name) == 0 ? '/' : $name);
-				if(!isset($z[1]) || (preg_match('#^[/]?'.$z[1].'(.*)$#i', '/'.$name, $bx))){
+				if(!isset($z[1]) || (preg_match('#^'.$z[1].'(.*)$#i', $name, $bx))){
 					if(isset($bx[1])){ $name = $bx[1]; }
 					$raw = $zip->getFromIndex($i);
 					$db[] = array(
@@ -436,7 +461,7 @@ class Phoenix {
 				}
 			}
 			//*debug*/ print_r($zip);
-			if($zcreated === TRUE){ unlink('/tmp/'.$zz.'.zip'); }
+			if($zcreated === TRUE){ unlink($tmpfile); }
 		}
 		else{ # $dir is a directory
 			$list = scandir($dir);
