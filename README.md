@@ -80,7 +80,7 @@ This function is a configuration short of the *auto upgrade* procedure.
 ### Phoenix::mtime_rollback($mount=NULL, $src=FALSE)
 Sets the `mtime` back in time when an older matching and identical file exists (in an archive). This fixes overwritten files that in fact has not changed.
 
-`$mount` should be a directory. `$src` can be a directory or a zip-file.
+`$mount` should be a local directory. `$src` can be a directory or a zip-file.
 
 ### Phoenix::fingerprint($mount, $root=FALSE)
 `$mount` can be a directory or a zip-file.
@@ -105,8 +105,6 @@ To provide a shell of security (e.g. test if the user is authenticated and has `
 
 ### PHOENIX_ARCHIVE
 The constant `PHOENIX_ARCHIVE` sets the directory where all downloaded repositories are saved, and where the (overall) [phoenix.json](./phoenix.json) database is located. If you need to deviate from `dirname(dirname(__FILE__))`, make sure to set this constant before loading the Phoenix-library.
-
-### Phoenix::getIndexByName($archive)
 
 ## Navigating the Phoenix database
 
@@ -141,6 +139,8 @@ This method is an alias of `$P->settings[$i]['src']`.
    }
 ]
 ```
+
+Each entry could use $name, $src, $mount or $type, $license, and any other meta-data. After installing the version-data will be added: mtime, release, git:sha1.
 
 ### Phoenix::load_settings($file=FALSE)
 Loads the settings from [phoenix.json](./phoenix.json) into the Phoenix-object.

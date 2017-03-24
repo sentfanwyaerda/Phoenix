@@ -8,7 +8,7 @@ define('PHOENIX_COMPARE_EXISTS', 0x001);
 define('PHOENIX_COMPARE_DELETED', 0x010);
 define('PHOENIX_COMPARE_SIZE', 0x002);
 define('PHOENIX_COMPARE_MTIME', 0x004);
-define('PHOENIX_COMPARE_MTIME_RENEW', 0x044);
+define('PHOENIX_COMPARE_MTIME_RENEW', (PHOENIX_COMPARE_MTIME + 0x040) );
 define('PHOENIX_COMPARE_MD5', 0x008);
 define('PHOENIX_COMPARE_SHA1', 0x080);
 define('PHOENIX_COMPARE_HASH', (PHOENIX_COMPARE_MD5 + PHOENIX_COMPARE_SHA1) );
@@ -24,13 +24,14 @@ class Phoenix {
 	/*private*/ var $cursor = FALSE;
 	var $settings = array();
 
-	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=NULL){
-		/*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
+	/* allowed are new Phoenix($phoenix_file); new Phoenix($archive); new Phoenix($archive, FALSE, $create, $phoenix_file); and new Phoenix($mount, $src, $create, $phoenix_file); */
+	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
+		//*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
 		/*if $root is $phoenix_file*/ if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
 		/*fix*/ if($root === NULL){ $root = dirname(__FILE__).'/'; }
-		$this->load_settings($phoenix_file, TRUE);
-		/*fix*/ if(!is_array($this->settings) || count($this->settings) == 0){ $this->load_settings(NULL, FALSE); }
-		$nid = count($this->settings);
+		if(substr(strtolower($phoenix_file), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $this->load_settings($phoenix_file, TRUE); }
+		/*fix*/ if($this->length() === FALSE){ $this->load_settings(FALSE, FALSE); }
+		$nid = $this->length();
 		/*when $root is archive-name only*/ if(!preg_match('#[/]#i', $root) && strlen($root)>0){ $this->settings[$nid]['name'] = $root; $root = dirname(dirname(__FILE__)).'/'.$root.'/';}
 		if(Phoenix::directory_exists($root)){
 			$this->settings[$nid]['mount'] = $root;
@@ -53,28 +54,51 @@ class Phoenix {
 		if(!is_int($d)){ $d = 0; }
 		$this->cursor = (int) ($i + $d);
 		/*debug*/ print "\ncursor: ".$this->cursor."\n";
-		/*recursive fix*/ if($this->cursor < 0){ self::set_cursor( count($this->settings) + $this->cursor ); }
-		/*recursive fix*/ if($this->cursor > 0 && $this->cursor >= count($this->settings)){ self::set_cursor($this->cursor - count($this->settings)); }
+		/*recursive fix*/ if($this->cursor < 0){ self::set_cursor( $this->length() + $this->cursor ); }
+		/*recursive fix*/ if($this->cursor > 0 && $this->cursor >= $this->length()){ self::set_cursor($this->cursor - $this->length()); }
 		return $this->cursor;
 	}
 	function next(){ return self::set_cursor(NULL, +1); }
 	function prev(){ return self::set_cursor(NULL, -1); }
 	function reset(){ return self::set_cursor(0); }
-	function end(){ return self::set_cursor(count($this->settings) - 1); }
+	function end(){ return self::set_cursor($this->length() - 1); }
+	function length(){ return (isset($this->settings) && is_array($this->settings) ? count($this->settings) : FALSE); }
 	function current(){ return $this->cursor; }
 	function doAll(){ $this->cursor = TRUE; }
 
+	/*
+	function example(){
+		if(is_bool($this->current())){
+			$c = $this->current(); $res = array();
+			$this->reset();
+			for($i=0;$i<$this->length();$i++){
+				$res[$i] = $this->example();
+				$this->next();
+			}
+			$this->doAll($c);
+			return $res;
+		}
+		else{
+			#code of Phoenix::example
+		}
+	}
+	*/
+
 	function directory_exists($dir){ return (file_exists($dir) && is_dir($dir)) ; }
-	function is_enabled(){
-		if(!$this->getVariableByIndex($this->current(), 'src') || !Phoenix::directory_exists($this->getMountByIndex($this->current())) ){ return FALSE; }
+	function is_enabled(){ /* /!\ experimental: could operate in an other fashion then specified */
+		if($this->get_src() === FALSE || !Phoenix::directory_exists($this->getMountByIndex($this->current())) ){ return FALSE; }
 		return $this->is_authenticated();
 	}
 	function is_authenticated(){
 		return (class_exists('Heracles') ? ( Heracles::is_authenticated() && Heracles::has_role('administrator') ) : TRUE);
 	}
 
-	function upgrade_available(){ return FALSE; }
-	function git_enabled(){ return FALSE; }
+	function upgrade_available(){ /* /!\ dummy: no code provided, yet */
+		return FALSE;
+	}
+	function git_enabled(){ /* /!\ dummy: no code provided, yet */
+		return FALSE;
+	}
 
 	function get_framework_root($type=FALSE){
 		if(!(PHOENIX_FRAMEWORK === FALSE)){
@@ -90,35 +114,41 @@ class Phoenix {
 	function get_fileshort(){ return 'phoenix.json'; }
 
 	function load_settings($file=FALSE, $flag=FALSE){
-		if(is_array($file)){ $this->settings = $file; }
+		if(is_array($file)){ $this->settings = $file; return TRUE; }
 		else{
 			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
 			if(!file_exists($file) || substr(strtolower($file), (strlen(self::get_fileshort())*-1)) !== self::get_fileshort() ){ return FALSE; }
-			$this->settings = json_decode(file_get_contents($file), TRUE);
+			//$this->settings = json_decode(file_get_contents($file), TRUE);
+			return $this->load_settings((class_exists('JSONplus') ? JSONplus::decode(file_get_contents($file)) : json_decode(file_get_contents($file), TRUE) ), $flag);
 		}
-
-		//*fix*/ if($this->get_src() === NULL && isset($this->settings[0]['src'])){ $this->change_src( $this->settings[0]['src'] ); }
-	}
-	function merge_settings($file, $overwrite=FALSE){}
-	function get_src(){
-		if(is_int($this->current())){ return $this->getVariableByIndex($this->current(), 'src'); }
-		#if(isset($this->settings['src'])){ return $this->settings['src']; }
 		return FALSE;
+	}
+	function merge_settings($file, $overwrite=FALSE){
+		if(is_array($file)){ $this->settings = array_merge($this->settings, $file); return TRUE; }
+		else{
+			if(file_exists($file) && substr(strtolower($file), (strlen(self::get_fileshort())*-1)) !== self::get_fileshort() ){
+				return $this->merge_settings((class_exists('JSONplus') ? JSONplus::decode(file_get_contents($file)) : json_decode(file_get_contents($file), TRUE) ), $overwrite);
+			}
+		}
+		return FALSE;
+	}
+	function get_src(){
+		return $this->getVariableByIndex($this->current(), 'src'); }
 	}
 	function save_settings($file=FALSE, $flag=FALSE){
 		if($this->is_enabled()){
 			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
-			return file_put_contens($file, json_encode($this->settings));
+			return file_put_contents($file, (class_exists('JSONplus') ? JSONplus::encode($this->settings) : json_encode($this->settings) ) );
 		}
 		return FALSE;
 	}
-	function clear_settings(){
+	function clear_settings(){ /* /!\ dummy: no code provided, yet */
 		$set = array();
 		return $set;
 	}
 	function getIndexByName($archive){
-		for($i=0;$i<count($this->settings);$i++){
-			if(strtolower($this->settings[$i]['name']) == strtolower($archive)){ return $i; }
+		for($i=0;$i<$this->length();$i++){
+			if(isset($this->settings[$i]['name']) && strtolower($this->settings[$i]['name']) == strtolower($archive)){ return $i; }
 		}
 		return FALSE;
 	}
@@ -126,20 +156,24 @@ class Phoenix {
 		return (isset($this->settings[$i]['mount']) ? $this->settings[$i]['mount'] : (isset($this->settings[$i]['type']) ? $this->get_framework_root($this->settings[$i]['type']) :  NULL));
 	}
 	function getVariableByIndex($i, $var){
-		return $this->settings[$i][$var];
+		return (is_int($i) && isset($this->settings[$i]) && isset($this->settings[$i][$var]) ? $this->settings[$i][$var] : FALSE);
 	}
 
-	function get_backup($id=0){
+	function get_backup($id=0){ /* /!\ dummy: no code provided, yet */
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
 		return $file;
 	}
-	function backup(){ return $backup; }
+	function backup(){ /* /!\ dummy: no code provided, yet */
+		return $backup;
+	}
 	function revert($to){ return self::restore($to); }
-	function restore($id=0){
+	function restore($id=0){  /* /!\ dummy: no code provided, yet */
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
 	}
-	function cleanup($keep=0){ /*removes all backups except it keeps the last/most-recent $keep backups */ }
-	function get_backup_id($keep=0, $flag=FALSE){
+	function cleanup($keep=0){ /* /!\ dummy: no code provided, yet */
+		/*removes all backups except it keeps the last/most-recent $keep backups */
+	}
+	function get_backup_id($keep=0, $flag=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		$list = scandir($this->get_root($flag));
 		$set = array();
 		foreach($list as $i=>$f){
@@ -156,9 +190,10 @@ class Phoenix {
 		return ( $keep <= 0 ? /*first*/ reset($set) : /*last*/ end($set) );
 	}
 
-	function stall(){}
+	function stall(){ /* /!\ dummy: no code provided, yet */
+	}
 
-	function download($to=FALSE, $conf=array()){
+	function download($to=FALSE, $conf=array()){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(is_array($to)){ $conf = $to; $to = FALSE; }
 		if($to === FALSE){ $to = (
 				is_array($conf) && isset($conf['repository'])
@@ -172,7 +207,7 @@ class Phoenix {
 	}
 
 	function update($save_settings=FALSE){ return self::upgrade(FALSE, FALSE, $save_settings); }
-	function git_pull($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){
+	function git_pull($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){ /* /!\ dummy: no code provided, yet */
 		if(self::git_enabled()){
 			$index = $this->getIndexByName($archive);
 			$mount = $this->getMountByIndex($index);
@@ -181,7 +216,7 @@ class Phoenix {
 			//*alternate of:*/ return self::upgrade($archive, $autocreate, $save_settings);
 		} else { return FALSE; }
 	}
-	function upgrade($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){
+	function upgrade($archive=NULL, $autocreate=FALSE, $save_settings=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		if($this->is_enabled()){
 			if(self::git_enabled()){ self::git_pull($archive); }
 			else{
@@ -192,7 +227,7 @@ class Phoenix {
 		}
 	}
 
-	function git_clone($archive, $uninstall_first=FALSE){
+	function git_clone($archive, $uninstall_first=FALSE){ /* /!\ dummy: no code provided, yet */
 		if(self::git_enabled()){
 			$index = $this->getIndexByName($archive);
 			$mount = $this->getMountByIndex($index);
@@ -202,7 +237,7 @@ class Phoenix {
 			return self::install($archive, $uninstall_first);
 		}
 	}
-	function install($archive, $uninstall_first=FALSE){
+	function install($archive, $uninstall_first=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		if(!file_exists($archive) || !preg_match("#[\.](zip)$#i", $archive)){
 			if($this->getIndexByName($archive)){ $this->set_cursor($this->getIndexByName($archive)); }
 			else { return FALSE; }
@@ -225,7 +260,7 @@ class Phoenix {
 		}
 		return FALSE;
 	}
-	private function _find_one_directory_only($dir, $ignore_archives=FALSE){
+	private function _find_one_directory_only($dir, $ignore_archives=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
 		$list = scandir($dir);
 		$set = array();
@@ -243,7 +278,7 @@ class Phoenix {
 		}
 		return end($set);
 	}
-	private function _move_up_one_directory($dir, $remove=FALSE){
+	private function _move_up_one_directory($dir, $remove=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
 		$list = scandir($dir);
 		foreach($list as $i=>$f){
@@ -256,7 +291,7 @@ class Phoenix {
 		return TRUE;
 	}
 
-	function uninstall($dir=NULL, $recursive=TRUE, $keep_archives=TRUE){
+	function uninstall($dir=NULL, $recursive=TRUE, $keep_archives=TRUE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if($dir === NULL){ $dir = $this->get_root(); }
 		if(!preg_match("#^(".$this->get_root().")#i", $dir)){ return FALSE; }
 		if($this->is_enabled()){
@@ -278,7 +313,7 @@ class Phoenix {
 	}
 
 
-	function get_github_data($src=FALSE, $magic=TRUE/*array()*/){
+	function get_github_data($src=FALSE, $magic=TRUE/*array()*/){ /* /!\ unstable: when GitHub changes their website, this script can break! */
 		if(isset($this) && $src===FALSE){ $src = $this->get_src(); }
 		/*fix*/if(!($magic === TRUE) && !is_array($magic)){ $magic = array($magic); }
 		$end = '€'; $end2 = '¤';
@@ -354,7 +389,7 @@ class Phoenix {
 		}
 		return $res;
 	}
-	function fingerprint($dir, $root=FALSE){
+	function fingerprint($dir, $root=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if($root===FALSE){ $root = $dir; }
 		if(!(substr($dir, 0, strlen($root)) == $root)){ return FALSE; }
 		$prefix = substr($dir, strlen($root));
@@ -430,7 +465,7 @@ class Phoenix {
 		return $db;
 	}
 	function fingerprint_compare($old=array(), $new=array(), $compare=0x0FF){ return self::fingerprint_diff($old, $new, $compare); }
-	function fingerprint_diff($old=array(), $new=array(), $compare=0x0FF){
+	function fingerprint_diff($old=array(), $new=array(), $compare=0x0FF){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? PHOENIX_COMPARE_ALL : 0x000); }
 		$diff = array();
 		$list = array_unique(array_merge(self::_get_file_s($old, TRUE), self::_get_file_s($new, TRUE)));
@@ -479,7 +514,22 @@ class Phoenix {
 		return $list;
 	}	
 	function mtime_rollback($mount=NULL, $src=FALSE){
-		/*fix: get $mount, $src */
+		if($mount === NULL && $src === FALSE){
+			if(is_bool($this->current())){
+				$c = $this->current(); $res = array();
+				$this->reset();
+				for($i=0;$i<$this->length();$i++){
+					$res[$i] = $this->mtime_rollback();
+					$this->next();
+				}
+				$this->doAll($c);
+				return $res;
+			}
+			else{
+				$mount = $this->getMountByIndex($this->current());
+				$src = $this->getVariableByIndex($this->current(), 'src');
+			}
+		}
 		//if(!self::directory_exists($mount) || !(file_exists($src) || self::directory_exists($src)) ){ return FALSE; }
 		$db = self::fingerprint_compare(self::fingerprint($mount), self::fingerprint($src));
 		foreach($db as $i=>$f){
@@ -490,7 +540,7 @@ class Phoenix {
 		return $db;
 	}
 }
-function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){
+function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 	$P = new Phoenix(NULL, FALSE, $auto, $pfile);
 	return $P->upgrade($auto, $save_settings);
 }
