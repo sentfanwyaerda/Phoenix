@@ -29,6 +29,7 @@ class Phoenix {
 
 	/* allowed are new Phoenix($phoenix_file); new Phoenix($archive); new Phoenix($archive, FALSE, $create, $phoenix_file); and new Phoenix($mount, $src, $create, $phoenix_file); */
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
+		$this->buffer['_start_'] = microtime(TRUE);
 		//*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
 		/*if $root is $phoenix_file*/ if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
 		/*fix*/ if($root === NULL){ $root = dirname(__FILE__).'/'; }
@@ -56,7 +57,7 @@ class Phoenix {
 		if(!is_int($i)){ $i = (is_int($this->cursor) ? $this->cursor : 0); }
 		if(!is_int($d)){ $d = 0; }
 		$this->cursor = (int) ($i + $d);
-		/*debug*/ print "\ncursor: ".$this->cursor."\n";
+		//*debug*/ print "\ncursor: ".$this->cursor."\n";
 		/*recursive fix*/ if($this->cursor < 0){ self::set_cursor( $this->length() + $this->cursor ); }
 		/*recursive fix*/ if($this->cursor > 0 && $this->cursor >= $this->length()){ self::set_cursor($this->cursor - $this->length()); }
 		return $this->cursor;
@@ -135,8 +136,24 @@ class Phoenix {
 		}
 		return FALSE;
 	}
-	function get_src(){
-		return $this->getVariableByIndex($this->current(), 'src');
+	function get_src($parm=0x00000){
+		$src = $this->getVariableByIndex($this->current(), 'src');
+		if($parm & 0x02000){ /*proces download-link from github*/ 
+			if(preg_match('#^http[s]?\:\/\/(www\.)?github\.com/#', $src)){
+				$ggd = $this->get_github_data($src);
+				$src = $ggd['download'];
+			}
+		}
+		if($parm & 0x01000){ /*check if an alias exists*/
+			/*fix*/ if(isset($this->buffer[md5($src)])){ $src = $this->buffer[md5($src)]; }
+		}
+		if($parm & 0x04000){ /*removes optional #/path/ */
+			if(preg_match('#\.zip#', $src)){
+				$z = explode('.zip', $src);
+				$src = $z[0].'.zip';
+			}
+		}
+		return $src;
 	}
 	function save_settings($file=FALSE, $flag=FALSE){
 		if($this->is_enabled()){
@@ -149,17 +166,19 @@ class Phoenix {
 		$set = array();
 		return $set;
 	}
-	function getIndexByName($archive){
+	function getIndexByName($archive, $var='name'){
+		/*fix*/ if(!in_array($var, array('name', 'src', 'mount'))){ $var = 'name'; }
 		for($i=0;$i<$this->length();$i++){
-			if(isset($this->settings[$i]['name']) && strtolower($this->settings[$i]['name']) == strtolower($archive)){ return $i; }
+			if(isset($this->settings[$i][$var]) && strtolower($this->settings[$i][$var]) == strtolower($archive)){ return $i; }
 		}
 		return FALSE;
 	}
 	function getMountByIndex($i){
 		return (isset($this->settings[$i]['mount']) ? $this->settings[$i]['mount'] : (isset($this->settings[$i]['type']) ? $this->get_framework_root($this->settings[$i]['type']) :  NULL));
 	}
-	function getVariableByIndex($i, $var){
-		return (is_int($i) && isset($this->settings[$i]) && isset($this->settings[$i][$var]) ? $this->settings[$i][$var] : FALSE);
+	function getVariableByIndex($i, $var=array()){
+		if(is_array($var) || is_bool($var)){ return (is_int($i) && isset($this->settings[$i]) ? $this->settings[$i] : FALSE); }
+		else{ return (is_int($i) && isset($this->settings[$i]) && isset($this->settings[$i][$var]) ? $this->settings[$i][$var] : FALSE); }
 	}
 
 	function get_backup($id=0){ /* /!\ dummy: no code provided, yet */
@@ -259,22 +278,47 @@ class Phoenix {
 			return self::install($archive, $uninstall_first);
 		}
 	}
-	function install($archive, $uninstall_first=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
-		if(!file_exists($archive) || !preg_match("#[\.](zip)$#i", $archive)){
+	function install($archive=NULL, $uninstall_first=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+		//*debug*/ print "\n< ! -- INSTALL: ".$archive.'  --  >';
+		/*fix*/ if(is_bool($archive)){ $uninstall_first = $archive; $archive = NULL; }
+		if($archive !== NULL){
 			if($this->getIndexByName($archive)){ $this->set_cursor($this->getIndexByName($archive)); }
-			else { return FALSE; }
+			elseif($this->getIndexByName($archive, 'src')){ $this->set_cursor($this->getIndexByName($archive, 'src')); }
+			else{ return FALSE; }
 		}
+		$archive = $this->get_src(0x07000);
+		/*debug*/ print " &rarr; ".$archive;
+
+		if(is_bool($this->current())){
+			$c = $this->current(); $res = array();
+			$this->reset();
+			for($i=0;$i<$this->length();$i++){
+				$res[$i] = $this->install(NULL, $uninstall_first);
+				$this->next();
+			}
+			$this->doAll($c);
+			return $res;
+		} #else{}
+
 		if($this->is_enabled()){
-			if($uninstall_first !== FALSE){ $this->uninstall($this->getMountByIndex($this->current()), TRUE, TRUE); }
+			/*remove $archive if it already exists; to do a clean install*/
+			#if($uninstall_first !== FALSE){ $this->uninstall($this->getMountByIndex($this->current()), TRUE, TRUE); }
+			/*make sure $archive is not yet installed*/
+			#if(self::directory_exists($this->getMountByIndex($this->current()))){ return FALSE; }
+			/*download*/
+			if(!file_exists($archive) || preg_match('#^(http[s]?|ftp)\:\/\/#', $archive)){ $this->download(); $archive = $this->get_src(0x07000); }
 			if(self::git_enabled()){ return self::git_clone($archive); }
 			else{
 				$zip = new ZipArchive;
 				$res = $zip->open($archive);
+				/*debug*/ print "\n".$archive.' ('.print_r($res, TRUE).') = '; print_r($zip);
 				if($res === TRUE){
+					//*fix*/ if(!self::directory_exists($this->getMountByIndex($this->current()))){ mkdir($this->getMountByIndex($this->current())); chmod($this->getMountByIndex($this->current()), 0777); }
+					//*debug*/ return $archive.' = '.$this->getMountByIndex($this->current());
 					$zip->extractTo($this->getMountByIndex($this->current())); //, $files
 					$zip->close();
 					$only = $this->_find_one_directory_only($this->getMountByIndex($this->current()), TRUE);
-					print '<!-- '.$only.' -->';
+					//print '<!-- '.$only.' -->';
 					if($only !== FALSE){ $this->_move_up_one_directory($this->getMountByIndex($this->current()).$only.'/', TRUE); }
 					return TRUE;
 				}
