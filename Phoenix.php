@@ -282,6 +282,14 @@ class Phoenix {
 			return self::install($archive, $uninstall_first);
 		}
 	}
+	function install_2017($archive=NULL, $uninstall_first=FALSE){
+		/* 0. process variables */
+		/* 1. check if directory_exists; create directory */
+		/* 2. get archive; download */
+		/* 3. extract archive */
+		/* 4. update phoenix.json database */
+		return TRUE;
+	}
 	function install($archive=NULL, $uninstall_first=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		//*debug*/ print "\n< ! -- INSTALL: ".$archive.'  --  >';
 		/*fix*/ if(is_bool($archive)){ $uninstall_first = $archive; $archive = NULL; }
