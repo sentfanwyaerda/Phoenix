@@ -1,9 +1,9 @@
 <?php
 if(file_exists(dirname(dirname(__FILE__)).'/Heracles/Heracles.php')){ require_once(dirname(dirname(__FILE__)).'/Heracles/Heracles.php'); }
+if(file_exists(dirname(dirname(__FILE__)).'/JSONplus/JSONplus.php')){ require_once(dirname(dirname(__FILE__)).'/JSONplus/JSONplus.php'); }
 if(!defined('PHOENIX_ARCHIVE')){ define('PHOENIX_ARCHIVE', dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR); }
 if(!defined('PHOENIX_FRAMEWORK')){ define('PHOENIX_FRAMEWORK', FALSE); }
 
-define('PHOENIX_COMPARE_ALL', 0x0FF);
 define('PHOENIX_COMPARE_EXISTS', 0x001);
 define('PHOENIX_COMPARE_DELETED', 0x010);
 define('PHOENIX_COMPARE_SIZE', 0x002);
@@ -12,6 +12,7 @@ define('PHOENIX_COMPARE_MTIME_RENEW', (PHOENIX_COMPARE_MTIME + 0x040) );
 define('PHOENIX_COMPARE_MD5', 0x008);
 define('PHOENIX_COMPARE_SHA1', 0x080);
 define('PHOENIX_COMPARE_HASH', (PHOENIX_COMPARE_MD5 + PHOENIX_COMPARE_SHA1) );
+define('PHOENIX_COMPARE_ALL', (PHOENIX_COMPARE_EXISTS + PHOENIX_COMPARE_DELETED + PHOENIX_COMPARE_SIZE + PHOENIX_COMPARE_MTIME_RENEW + PHOENIX_COMPARE_HASH) );
 
 define('PHOENIX_HOLD', 0x000);
 define('PHOENIX_UPGRADE', 0x100);
@@ -20,7 +21,10 @@ define('PHOENIX_DELETE', 0x310);
 define('PHOENIX_ROLLBACK', 0x400);
 define('PHOENIX_INSPECT', 0x800);
 
-define('PHOENIX_GITHUB_LIFESPAN', 3600 /*seconds*/ );
+if(!defined('PHOENIX_GITHUB_LIFESPAN')){ define('PHOENIX_GITHUB_LIFESPAN', 3600 /*seconds*/ ); }
+
+/*todo: adapt Phoenix::get_github_data() to also proces GitLab*/
+if(!defined('PHOENIX_GITLAB_DOMAIN')){ define('PHOENIX_GITLAB_DOMAIN', FALSE; }
 
 class Phoenix {
 	private $cursor = FALSE;
@@ -304,9 +308,10 @@ class Phoenix {
 			/*remove $archive if it already exists; to do a clean install*/
 			#if($uninstall_first !== FALSE){ $this->uninstall($this->getMountByIndex($this->current()), TRUE, TRUE); }
 			/*make sure $archive is not yet installed*/
-			#if(self::directory_exists($this->getMountByIndex($this->current()))){ return FALSE; }
+			if(self::directory_exists($this->getMountByIndex($this->current()))){ return FALSE; }
 			/*download*/
 			if(!file_exists($archive) || preg_match('#^(http[s]?|ftp)\:\/\/#', $archive)){ $this->download(); $archive = $this->get_src(0x07000); }
+
 			if(self::git_enabled()){ return self::git_clone($archive); }
 			else{
 				$zip = new ZipArchive;
@@ -459,6 +464,7 @@ class Phoenix {
 		return $res;
 	}
 	function fingerprint($dir, $root=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+		if(is_array($dir) /*is valid fingerprint result*/ ){ return $dir; }
 		/*fix*/ if($root===FALSE){ $root = $dir; }
 		if(!(substr($dir, 0, strlen($root)) == $root)){ return FALSE; }
 		$prefix = substr($dir, strlen($root));
@@ -537,8 +543,8 @@ class Phoenix {
 		}
 		return $db;
 	}
-	function fingerprint_compare($old=array(), $new=array(), $compare=0x0FF){ return self::fingerprint_diff($old, $new, $compare); }
-	function fingerprint_diff($old=array(), $new=array(), $compare=0x0FF){ /* /!\ experimental: could operate in an other fashion then specified */
+	function fingerprint_compare($old=array(), $new=array(), $compare=PHOENIX_COMPARE_ALL){ return self::fingerprint_diff($old, $new, $compare); }
+	function fingerprint_diff($old=array(), $new=array(), $compare=PHOENIX_COMPARE_ALL){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(is_bool($compare)){ $compare = ($compare === TRUE ? PHOENIX_COMPARE_ALL : 0x000); }
 		$diff = array();
 		$list = array_unique(array_merge(self::_get_file_s($old, TRUE), self::_get_file_s($new, TRUE)));
@@ -563,6 +569,14 @@ class Phoenix {
 			}
 		}
 		return $diff;
+	}
+	/*bool*/ function fingerprint_is_identical($old=array(), $new=array(), $compare=PHOENIX_COMPARE_ALL){
+		$d = self::fingerprint_diff($old, $new, $compare);
+		$bool = TRUE;
+		foreach($d as $i=>$f){
+			$bool = (($f['hint'] == 'hold' || $f['old']['md5'] == $f['new']['md5'] || $f['old']['md5'] == $f['sha1']['sha1']) ? $bool : FALSE);
+		}
+		return $bool;
 	}
 	private /*bool*/ function _has_variable_both($var=NULL, $first=array(), $second=array()){
 		return (isset($first[$var]) && isset($second[$var]));
