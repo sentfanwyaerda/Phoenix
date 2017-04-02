@@ -24,7 +24,9 @@ define('PHOENIX_INSPECT', 0x800);
 if(!defined('PHOENIX_GITHUB_LIFESPAN')){ define('PHOENIX_GITHUB_LIFESPAN', 3600 /*seconds*/ ); }
 
 /*todo: adapt Phoenix::get_github_data() to also proces GitLab*/
-if(!defined('PHOENIX_GITLAB_DOMAIN')){ define('PHOENIX_GITLAB_DOMAIN', FALSE; }
+if(!defined('PHOENIX_GITLAB_DOMAIN')){ define('PHOENIX_GITLAB_DOMAIN', FALSE); }
+
+if(!defined('PHOENIX_CHMOD')){ define('PHOENIX_CHMOD', 0777 ); }
 
 class Phoenix {
 	private $cursor = FALSE;
@@ -142,19 +144,27 @@ class Phoenix {
 	}
 	function get_src($parm=0x00000){
 		$src = $this->getVariableByIndex($this->current(), 'src');
+		if($parm & 0x01000){ /*check if an alias exists*/
+			/*fix*/ if(isset($this->buffer[md5($src)])){ $src = $this->buffer[md5($src)]; }
+		}
 		if($parm & 0x02000){ /*proces download-link from github*/ 
-			if(preg_match('#^http[s]?\:\/\/(www\.)?github\.com/#', $src)){
+			if(preg_match('#^http[s]?\:\/\/(www\.)?github\.com\/#', $src)){
 				$ggd = $this->get_github_data($src);
 				$src = $ggd['download'];
 			}
-		}
-		if($parm & 0x01000){ /*check if an alias exists*/
-			/*fix*/ if(isset($this->buffer[md5($src)])){ $src = $this->buffer[md5($src)]; }
+			/*again*/
+			if($parm & 0x01000){ /*check if an alias exists*/
+				/*fix*/ if(isset($this->buffer[md5($src)])){ $src = $this->buffer[md5($src)]; }
+			}
 		}
 		if($parm & 0x04000){ /*removes optional #/path/ */
 			if(preg_match('#\.zip#', $src)){
 				$z = explode('.zip', $src);
 				$src = $z[0].'.zip';
+			}
+			/*again*/
+			if($parm & 0x01000){ /*check if an alias exists*/
+				/*fix*/ if(isset($this->buffer[md5($src)])){ $src = $this->buffer[md5($src)]; }
 			}
 		}
 		return $src;
@@ -282,15 +292,8 @@ class Phoenix {
 			return self::install($archive, $uninstall_first);
 		}
 	}
-	function install_2017($archive=NULL, $uninstall_first=FALSE){
-		/* 0. process variables */
-		/* 1. check if directory_exists; create directory */
-		/* 2. get archive; download */
-		/* 3. extract archive */
-		/* 4. update phoenix.json database */
-		return TRUE;
-	}
 	function install($archive=NULL, $uninstall_first=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+		/* 0. process variables */
 		//*debug*/ print "\n< ! -- INSTALL: ".$archive.'  --  >';
 		/*fix*/ if(is_bool($archive)){ $uninstall_first = $archive; $archive = NULL; }
 		if($archive !== NULL){
@@ -299,8 +302,10 @@ class Phoenix {
 			else{ return FALSE; }
 		}
 		$archive = $this->get_src(0x07000);
-		/*debug*/ print " &rarr; ".$archive;
+		//*debug*/ print " &rarr; ".$archive;
+		//*debug*/ print " &rArr; ".$this->current();
 
+		/* 0b. process all! */
 		if(is_bool($this->current())){
 			$c = $this->current(); $res = array();
 			$this->reset();
@@ -312,14 +317,27 @@ class Phoenix {
 			return $res;
 		} #else{}
 
+		//*experimental*/ umask(0);
+		//*debug*/ print " &lArr; "; print_r($this->getMountByIndex($this->current())); print ' '; print_r(umask());
+
 		if($this->is_enabled()){
-			/*remove $archive if it already exists; to do a clean install*/
+			/* 1a. remove $archive if it already exists; to do a clean install*/
 			#if($uninstall_first !== FALSE){ $this->uninstall($this->getMountByIndex($this->current()), TRUE, TRUE); }
-			/*make sure $archive is not yet installed*/
-			if(self::directory_exists($this->getMountByIndex($this->current()))){ return FALSE; }
-			/*download*/
+			/* 1b. check if directory_exists; create directory */
+			if(self::directory_exists($this->getMountByIndex($this->current()))){ /*make sure $archive is not yet installed*/
+				/*debug*/ print "\n".$this->getMountByIndex($this->current())." already exists!\n";
+			#	return FALSE;
+			} else {
+				/*debug*/ print "\ncurrent mount = ".$this->getMountByIndex($this->current())."\n";
+				mkdir($this->getMountByIndex($this->current()), PHOENIX_CHMOD);
+				chmod($this->getMountByIndex($this->current()), PHOENIX_CHMOD);
+			}
+			/* 2. get archive; download */
 			if(!file_exists($archive) || preg_match('#^(http[s]?|ftp)\:\/\/#', $archive)){ $this->download(); $archive = $this->get_src(0x07000); }
 
+			//*debug*/ print " &larr; ".$archive;
+
+			/* 3. extract archive */
 			if(self::git_enabled()){ return self::git_clone($archive); }
 			else{
 				$zip = new ZipArchive;
@@ -336,6 +354,7 @@ class Phoenix {
 					return TRUE;
 				}
 			}
+			/* 4. update phoenix.json database */
 		}
 		return FALSE;
 	}
