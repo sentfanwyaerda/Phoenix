@@ -49,7 +49,8 @@ class Phoenix {
 		elseif($create !== FALSE){
 			if(Phoenix::directory_exists(dirname($root)) && is_writeable(dirname($root)) ){
 				if(!Phoenix::directory_exists($root) && Phoenix::is_authenticated()){
-					mkdir($root, /*0777*/ substr(sprintf('%o', fileperms(dirname($root))), -4) );
+					//mkdir($root, /*0777*/ substr(sprintf('%o', fileperms(dirname($root))), -4) );
+					$this->_mkdir($root, PHOENIX_CHMOD);
 				}
 				$this->settings[$nid]['mount'] = $root;
 			}
@@ -329,8 +330,7 @@ class Phoenix {
 			#	return FALSE;
 			} else {
 				/*debug*/ print "\ncurrent mount = ".$this->getMountByIndex($this->current())."\n";
-				mkdir($this->getMountByIndex($this->current()), PHOENIX_CHMOD);
-				chmod($this->getMountByIndex($this->current()), PHOENIX_CHMOD);
+				$this->_mkdir($this->getMountByIndex($this->current()), PHOENIX_CHMOD);
 			}
 			/* 2. get archive; download */
 			if(!file_exists($archive) || preg_match('#^(http[s]?|ftp)\:\/\/#', $archive)){ $this->download(); $archive = $this->get_src(0x07000); }
@@ -654,6 +654,12 @@ class Phoenix {
 			}
 		}
 		return $db;
+	}
+	private function _mkdir($root=FALSE, $chmod=NULL){
+		if($root === FALSE){ $root = $this->getMountByIndex($this->current()); }
+		if($chmod === NULL){ $chmod = PHOENIX_CHMOD; }
+		mkdir($root, $chmod);
+		chmod($root, $chmod);
 	}
 }
 function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
