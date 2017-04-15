@@ -49,7 +49,6 @@ class Phoenix {
 		elseif($create !== FALSE){
 			if(Phoenix::directory_exists(dirname($root)) && is_writeable(dirname($root)) ){
 				if(!Phoenix::directory_exists($root) && Phoenix::is_authenticated()){
-					//mkdir($root, /*0777*/ substr(sprintf('%o', fileperms(dirname($root))), -4) );
 					$this->_mkdir($root, PHOENIX_CHMOD);
 				}
 				$this->settings[$nid]['mount'] = $root;
@@ -660,6 +659,12 @@ class Phoenix {
 		if($chmod === NULL){ $chmod = PHOENIX_CHMOD; }
 		mkdir($root, $chmod);
 		chmod($root, $chmod);
+	}
+	private function _get_chmod($file, $fix=FALSE){
+		if(!file_exists($file)){ return FALSE; }
+		$chmod = substr(sprintf('%o', fileperms($file)), -4);
+		if($fix === TRUE){ $chmod = base_convert((string) $chmod, 10, 8); }
+		return $chmod;
 	}
 }
 function Phoenix($pfile, $auto=FALSE, $save_settings=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
