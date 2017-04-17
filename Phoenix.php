@@ -64,8 +64,12 @@ class Phoenix {
 		if(!is_int($d)){ $d = 0; }
 		$this->cursor = (int) ($i + $d);
 		//*debug*/ print "\ncursor: ".$this->cursor."\n";
-		/*recursive fix*/ if($this->cursor < 0){ self::set_cursor( $this->length() + $this->cursor ); }
-		/*recursive fix*/ if($this->cursor > 0 && $this->cursor >= $this->length()){ self::set_cursor($this->cursor - $this->length()); }
+		/*out of range fix*/ if($this->length() === FALSE){ $this->cursor = FALSE; }
+		else{
+		/*out of range fix*/ if($this->length() <= 0){ self::set_cursor(0); }
+		/*recursive fix*/ elseif($this->cursor < 0){ self::set_cursor( $this->length() + $this->cursor ); }
+		/*recursive fix*/ elseif($this->cursor > 0 && $this->cursor >= $this->length()){ self::set_cursor($this->cursor - $this->length()); }
+		}
 		return $this->cursor;
 	}
 	function next(){ return self::set_cursor(NULL, +1); }
