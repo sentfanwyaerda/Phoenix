@@ -300,6 +300,7 @@ class Phoenix {
 		}
 	}
 	function install($archive=NULL, $uninstall_first=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
+		$bool = FALSE;
 		/* 0. process variables */
 		//*debug*/ print "\n< ! -- INSTALL: ".$archive.'  --  >';
 		/*fix*/ if(is_bool($archive)){ $uninstall_first = $archive; $archive = NULL; }
@@ -353,17 +354,26 @@ class Phoenix {
 					//*fix*/ if(!self::directory_exists($this->getMountByIndex($this->current()))){ mkdir($this->getMountByIndex($this->current())); chmod($this->getMountByIndex($this->current()), 0777); }
 					//*debug*/ return $archive.' = '.$this->getMountByIndex($this->current());
 					$zip->extractTo($this->getMountByIndex($this->current())); //, $files
+					$sha1 = $zip->getArchiveComment();
 					$zip->close();
 					$only = $this->_find_one_directory_only($this->getMountByIndex($this->current()), TRUE);
 					//print '<!-- '.$only.' -->';
 					if($only !== FALSE){ $this->_move_up_one_directory($this->getMountByIndex($this->current()).$only.'/', TRUE); }
-					return TRUE;
+					$bool = TRUE;
 				}
 			}
 			/* 4. update phoenix.json database */
-			$this->settings[$this->current()]['version'] = $this->get_src(0x0F000);
+			$this->settings[$this->current()]['local']['src']['file'] = $archive;
+			$this->settings[$this->current()]['local']['src']['size'] = filesize($archive);
+			$this->settings[$this->current()]['local']['src']['mtime'] = filemtime($archive);
+			$this->settings[$this->current()]['local']['src']['mtime:iso8601'] = date('c', filemtime($archive));
+			$this->settings[$this->current()]['local']['src']['md5'] = @md5_file($archive);
+			$this->settings[$this->current()]['local']['src']['sha1'] = @sha1_file($archive);
+			$this->settings[$this->current()]['local']['version']['identifier'] = $this->get_src(0x0F000);
+			$this->settings[$this->current()]['local']['version']['commit:sha'] = $sha1; //$zip->getArchiveComment();
+			if(FALSE){ $this->settings[$this->current()]['local']['version']['tag'] = ''; }
 		}
-		return FALSE;
+		return $bool;
 	}
 	private function _find_one_directory_only($dir, $ignore_archives=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		/*fix*/ if(!(is_dir($dir) && preg_match("#[/]$#i", $dir) )){ return FALSE; }
