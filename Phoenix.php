@@ -171,6 +171,9 @@ class Phoenix {
 				/*fix*/ if(isset($this->buffer[md5($src)])){ $src = $this->buffer[md5($src)]; }
 			}
 		}
+		if($parm & 0x08000){ /*finds the SHA1 of the downloaded file*/
+			if(preg_match('#[-]([^\.]+)\.zip#i', $src, $buffer)){ $src = $buffer[1]; }
+		}
 		return $src;
 	}
 	function save_settings($file=FALSE, $flag=FALSE){
@@ -329,10 +332,10 @@ class Phoenix {
 			#if($uninstall_first !== FALSE){ $this->uninstall($this->getMountByIndex($this->current()), TRUE, TRUE); }
 			/* 1b. check if directory_exists; create directory */
 			if(self::directory_exists($this->getMountByIndex($this->current()))){ /*make sure $archive is not yet installed*/
-				/*debug*/ print "\n".$this->getMountByIndex($this->current())." already exists!\n";
+				//*debug*/ print "\n".$this->getMountByIndex($this->current())." already exists!\n";
 			#	return FALSE;
 			} else {
-				/*debug*/ print "\ncurrent mount = ".$this->getMountByIndex($this->current())."\n";
+				//*debug*/ print "\ncurrent mount = ".$this->getMountByIndex($this->current())."\n";
 				$this->_mkdir($this->getMountByIndex($this->current()), PHOENIX_CHMOD);
 			}
 			/* 2. get archive; download */
@@ -358,6 +361,7 @@ class Phoenix {
 				}
 			}
 			/* 4. update phoenix.json database */
+			$this->settings[$this->current()]['version'] = $this->get_src(0x0F000);
 		}
 		return FALSE;
 	}
