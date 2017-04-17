@@ -138,9 +138,24 @@ class Phoenix {
 		return FALSE;
 	}
 	function merge_settings($file, $overwrite=FALSE){
-		if(is_array($file)){ $this->settings = array_merge($this->settings, $file); return TRUE; }
+		/*debug*/ print "\nPhoenix::merge_settings =\n"; print_r($file);
+		if(is_array($file)){
+			//$this->settings = array_merge($this->settings, $file); return TRUE;
+			$bool = FALSE;
+			foreach($file as $i=>$item){
+				//if(isset($item['name'])){
+				if($this->getIndexByName($item['name']) === FALSE){
+					$this->settings[] = $item; $bool = TRUE;
+				} elseif( !($overwrite === FALSE) ){
+					$this->settings[$this->getIndexByName($item['name'])] = $item; $bool = TRUE;
+				}
+				//}
+			}
+			return $bool;
+		}
 		else{
-			if(file_exists($file) && substr(strtolower($file), (strlen(self::get_fileshort())*-1)) !== self::get_fileshort() ){
+			//*debug*/ print "\n".substr(strtolower($file), (strlen(self::get_fileshort())*-1)).'  ===  '.self::get_fileshort()."\n";
+			if(file_exists($file) && substr(strtolower($file), (strlen(self::get_fileshort())*-1)) == self::get_fileshort() ){
 				return $this->merge_settings((class_exists('JSONplus') ? JSONplus::decode(file_get_contents($file)) : json_decode(file_get_contents($file), TRUE) ), $overwrite);
 			}
 		}
@@ -354,7 +369,7 @@ class Phoenix {
 					//*fix*/ if(!self::directory_exists($this->getMountByIndex($this->current()))){ mkdir($this->getMountByIndex($this->current())); chmod($this->getMountByIndex($this->current()), 0777); }
 					//*debug*/ return $archive.' = '.$this->getMountByIndex($this->current());
 					$zip->extractTo($this->getMountByIndex($this->current())); //, $files
-					$sha1 = $zip->getArchiveComment();
+					/*meta-data*/ $sha1 = $zip->getArchiveComment(); $stat = $zip->statIndex(0); $mtime = $stat['mtime'];
 					$zip->close();
 					$only = $this->_find_one_directory_only($this->getMountByIndex($this->current()), TRUE);
 					//print '<!-- '.$only.' -->';
@@ -371,6 +386,8 @@ class Phoenix {
 			$this->settings[$this->current()]['local']['src']['sha1'] = @sha1_file($archive);
 			$this->settings[$this->current()]['local']['version']['identifier'] = $this->get_src(0x0F000);
 			$this->settings[$this->current()]['local']['version']['commit:sha'] = $sha1; //$zip->getArchiveComment();
+			$this->settings[$this->current()]['local']['version']['mtime'] = $mtime;
+			$this->settings[$this->current()]['local']['version']['mtime:iso8601'] = date('c', $mtime);
 			if(FALSE){ $this->settings[$this->current()]['local']['version']['tag'] = ''; }
 		}
 		return $bool;
