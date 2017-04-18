@@ -36,6 +36,7 @@ class Phoenix {
 	/* allowed are new Phoenix($phoenix_file); new Phoenix($archive); new Phoenix($archive, FALSE, $create, $phoenix_file); and new Phoenix($mount, $src, $create, $phoenix_file); */
 	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
 		$this->buffer['_start_'] = microtime(TRUE);
+		$this->load_buffer();
 		//*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
 		/*if $root is $phoenix_file*/ if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
 		/*fix*/ if($root === NULL){ $root = dirname(__FILE__).'/'; }
@@ -121,11 +122,19 @@ class Phoenix {
 				return $PF->get_root($type);
 			}
 		}
-		return $this->getVariableByIndex($this->current(), 'mount');
+		//return $this->getVariableByIndex($this->current(), 'mount');
+		return PHOENIX_ARCHIVE;
 	}
 
 	function get_root($flag=TRUE){ return ($flag === TRUE && isset($this) ? $this->getMountByIndex($this->current()) : PHOENIX_ARCHIVE); }
-	function get_fileshort(){ return 'phoenix.json'; }
+	function get_fileshort($alias=NULL){
+		switch(strtolower($alias)){
+			case 'backup': return 'phoenix['.date('Y-m-d').'].json'; break;
+			case 'buffer': return 'phoenix-buffer.json'; break;
+			default: return 'phoenix.json';
+		}
+	}
+	function local_var(){ return 'local'; }
 
 	function load_settings($file=FALSE, $flag=FALSE){
 		if(is_array($file)){ $this->settings = $file; return TRUE; }
@@ -138,7 +147,7 @@ class Phoenix {
 		return FALSE;
 	}
 	function merge_settings($file, $overwrite=FALSE){
-		/*debug*/ print "\nPhoenix::merge_settings =\n"; print_r($file);
+		//*debug*/ print "\nPhoenix::merge_settings =\n"; print_r($file);
 		if(is_array($file)){
 			//$this->settings = array_merge($this->settings, $file); return TRUE;
 			$bool = FALSE;
@@ -160,6 +169,54 @@ class Phoenix {
 			}
 		}
 		return FALSE;
+	}
+	function save_settings($file=FALSE, $flag=FALSE){
+		if($this->is_enabled()){
+			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
+			return file_put_contents($file, (class_exists('JSONplus') ? JSONplus::encode($this->settings) : json_encode($this->settings) ) );
+		}
+		return FALSE;
+	}
+	function clear_settings($save=FALSE){ /* /!\ dummy: no code provided, yet */
+		$set = $this->settings;
+		foreach($set as $i=>$item){
+			if(isset($set[$i][Phoenix::local_var()])){ unset($set[$i][Phoenix::local_var()]); }
+		}
+		if(!($save===FALSE)){ $this->save_settings(); }
+		return $set;
+	}
+	function load_buffer($file=FALSE, $flag=FALSE){
+		if(is_array($file)){
+			/*fix*/ if(isset($this->buffer['_start_'])){ $file['_start_'] = $this->buffer['_start_']; }
+			/*clear log*/ if(isset($file['_log_'])){ $file['_log_'] = (isset($this->buffer['_log_']) ? $this->buffer['_log_'] : array() ); }
+			/*merge created*/ if(isset($this->buffer['_created_'])){ $file['_created_'] = array_merge($this->buffer['_created_'], $file['_created_']); }
+			$this->buffer = array_merge((is_array($this->buffer) ? $this->buffer : array()), $file);
+			return TRUE;
+		}
+		else{
+			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort('buffer'); }
+			if(!file_exists($file) || substr(strtolower($file), (strlen(self::get_fileshort('buffer'))*-1)) !== self::get_fileshort('buffer') ){ return FALSE; }
+			return $this->load_buffer((class_exists('JSONplus') ? JSONplus::decode(file_get_contents($file)) : json_decode(file_get_contents($file), TRUE) ), $flag);
+		}
+		return FALSE;
+	}
+	function merge_buffer($file=FALSE, $flag=FALSE){ return $this->load_buffer($file, $flag); }
+	function save_buffer($file=FALSE, $flag=FALSE){
+		if($this->is_enabled()){
+			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort('buffer'); }
+			return file_put_contents($file, (class_exists('JSONplus') ? JSONplus::encode($this->buffer) : json_encode($this->buffer) ) );
+		}
+		return FALSE;
+	}
+	function clear_buffer($criteria=TRUE){
+		if(!( is_int($criteria) || is_double($criteria) )){ $criteria = microtime(TRUE); }
+		foreach($this->buffer['_created_'] as $key=>$time){
+			if($time <= $criteria){ unset($this->buffer[$key]); unset($this->buffer['_created_'][$key]); }
+		}
+		foreach($this->buffer as $key=>$item){
+			if(!in_array($key, array_merge(array('_start_','_created_'), array_keys($this->buffer['_created_'])) )){ unset($this->buffer[$key]); }
+		}
+		return $this->buffer;
 	}
 	function get_src($parm=0x00000){
 		$src = $this->getVariableByIndex($this->current(), 'src');
@@ -190,17 +247,6 @@ class Phoenix {
 			if(preg_match('#[-]([^\.]+)\.zip#i', $src, $buffer)){ $src = $buffer[1]; }
 		}
 		return $src;
-	}
-	function save_settings($file=FALSE, $flag=FALSE){
-		if($this->is_enabled()){
-			if($file === FALSE){ $file = Phoenix::get_root($flag).Phoenix::get_fileshort(); }
-			return file_put_contents($file, (class_exists('JSONplus') ? JSONplus::encode($this->settings) : json_encode($this->settings) ) );
-		}
-		return FALSE;
-	}
-	function clear_settings(){ /* /!\ dummy: no code provided, yet */
-		$set = array();
-		return $set;
 	}
 	function getIndexByName($archive, $var='name'){
 		/*fix*/ if(!in_array($var, array('name', 'src', 'mount'))){ $var = 'name'; }
@@ -378,17 +424,17 @@ class Phoenix {
 				}
 			}
 			/* 4. update phoenix.json database */
-			$this->settings[$this->current()]['local']['src']['file'] = $archive;
-			$this->settings[$this->current()]['local']['src']['size'] = filesize($archive);
-			$this->settings[$this->current()]['local']['src']['mtime'] = filemtime($archive);
-			$this->settings[$this->current()]['local']['src']['mtime:iso8601'] = date('c', filemtime($archive));
-			$this->settings[$this->current()]['local']['src']['md5'] = @md5_file($archive);
-			$this->settings[$this->current()]['local']['src']['sha1'] = @sha1_file($archive);
-			$this->settings[$this->current()]['local']['version']['identifier'] = $this->get_src(0x0F000);
-			$this->settings[$this->current()]['local']['version']['commit:sha'] = $sha1; //$zip->getArchiveComment();
-			$this->settings[$this->current()]['local']['version']['mtime'] = $mtime;
-			$this->settings[$this->current()]['local']['version']['mtime:iso8601'] = date('c', $mtime);
-			if(FALSE){ $this->settings[$this->current()]['local']['version']['tag'] = ''; }
+			$this->settings[$this->current()][Phoenix::local_var()]['src']['file'] = $archive;
+			$this->settings[$this->current()][Phoenix::local_var()]['src']['size'] = filesize($archive);
+			$this->settings[$this->current()][Phoenix::local_var()]['src']['mtime'] = filemtime($archive);
+			$this->settings[$this->current()][Phoenix::local_var()]['src']['mtime:iso8601'] = date('c', filemtime($archive));
+			$this->settings[$this->current()][Phoenix::local_var()]['src']['md5'] = @md5_file($archive);
+			$this->settings[$this->current()][Phoenix::local_var()]['src']['sha1'] = @sha1_file($archive);
+			$this->settings[$this->current()][Phoenix::local_var()]['version']['identifier'] = $this->get_src(0x0F000);
+			$this->settings[$this->current()][Phoenix::local_var()]['version']['commit:sha'] = $sha1; //$zip->getArchiveComment();
+			$this->settings[$this->current()][Phoenix::local_var()]['version']['mtime'] = $mtime;
+			$this->settings[$this->current()][Phoenix::local_var()]['version']['mtime:iso8601'] = date('c', $mtime);
+			if(FALSE){ $this->settings[$this->current()][Phoenix::local_var()]['version']['tag'] = ''; }
 		}
 		return $bool;
 	}
