@@ -34,7 +34,8 @@ class Phoenix {
 	private $buffer = array();
 
 	/* allowed are new Phoenix($phoenix_file); new Phoenix($archive); new Phoenix($archive, FALSE, $create, $phoenix_file); and new Phoenix($mount, $src, $create, $phoenix_file); */
-	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
+	function Phoenix($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){ return self::__construct($root, $src, $create, $phoenix_file); }
+	function __construct($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
 		$this->buffer['_start_'] = microtime(TRUE);
 		$this->load_buffer();
 		//*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
@@ -58,6 +59,11 @@ class Phoenix {
 		if($src !== FALSE && strlen($src) >= 1 ){ $this->settings[$nid]['src'] = $src; }
 		/*fix*/ if((isset($this->settings[$nid]) && !isset($this->settings[$nid]['name']) ) || $this->settings[$nid]['name'] === NULL){ $this->settings[$nid]['name'] = (is_dir($this->settings[$nid]['mount']) ? basename($this->settings[$nid]['mount']) : basename(dirname($this->settings[$nid]['mount'])) );}
 		/*fix*/ if(isset($this->settings[$nid])){ $this->set_cursor($nid); }
+	}
+	function open(){ self::__construct(); return $this; }
+	function close(){ return self::__destruct(); }
+	function __destruct(){
+		$this->save_buffer();
 	}
 
 	function set_cursor($i=NULL, $d=0){
