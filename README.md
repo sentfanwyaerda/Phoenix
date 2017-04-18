@@ -93,9 +93,9 @@ Sets the `mtime` back in time when an older matching and identical file exists (
 ### Phoenix::get_github_data($src)
 
 ### (bool) Phoenix::is_authenticated()
-To provide a shell of security (e.g. test if the user is authenticated and has `administrator` rights), Phoenix uses [Heracles](https://github.com/sentfanwyaerda/Heracles/) for this task.
+To provide a shell of security (e.g. test if the user is authenticated and has `administrator` rights), Phoenix uses [Heracles](https://github.com/sentfanwyaerda/Heracles/) or an valid *FRAMEWORK* for this task.
 
-**WARNING**: when [Heracles](https://github.com/sentfanwyaerda/Heracles) is not available it will return `TRUE`.
+**WARNING**: when [Heracles](https://github.com/sentfanwyaerda/Heracles) or an valid *FRAMEWORK* is not available it will return the value of `PHOENIX_AUTHENTICATED` (default: `TRUE`).
 
 ### (bool) Phoenix::is_enabled()
 
@@ -151,8 +151,11 @@ Loads additional settings from an other [phoenix.json](./phoenix.json)-file.
 ### Phoenix::save_settings($file=FALSE)
 Saves the settings to [phoenix.json](./phoenix.json).
 
-### Phoenix::clean_settings()
+### Phoenix::clear_settings()
 Removes additional data to provide an usable [phoenix.json](./phoenix.json) to do a fresh install on an other system.
+
+## Handeling Buffer
+Like *settings* it can handle a buffer with `Phoenix::load_buffer()`, `Phoenix::merge_buffer()`, `Phoenix::save_buffer()` and `Phoenix::clear_buffer()`.
 
 ## Integration with a framework
 
@@ -160,4 +163,28 @@ Removes additional data to provide an usable [phoenix.json](./phoenix.json) to d
 Phoenix is designed to work with [Hades](https://github.com/sentfanwyaerda/Hades). But if needed can be integrated into an other logical domain. By default it is set to `FALSE` and does not use a framework at all.
 
 ### Phoenix::get_framework_root($type)
+If available, it will give the result of:
+```php
+$framework = new PHOENIX_FRAMEWORK;
+return $framework->get_root($type);
+```
 
+### PHOENIX_GITHUB_LIFESPAN
+The time in seconds the data retrieved from GitHub should be kept valid within the buffer. Default is set to `3600` *(one hour)*.
+
+### PHOENIX_GITLAB_DOMAIN
+
+### PHOENIX_CHMOD
+Define the default CHMOD by an octal value like: `0777`
+
+## Dependencies and extensions
+By design it only needs [PHP](https://www.php.net/), but it can use several other libraries to integrate more functionality.
+
+### JSONplus
+**Phoenix** could use **[JSONplus](https://github.com/sentfanwyaerda/JSONplus)** instead of the default `json_encode()` and `json_decode()` to provide some more human-readability and other features.
+
+### Heracles
+**Heracles** can provide the actual logic to validate `Phoenix::is_authenticated()`. If available, only authenticated user-accounts with `administrator`-priviledges have the right/functionality to use **Phoenix**. **Heracles** puts it on *lock down*. You should use **Heracles** or an *FRAMEWORK* that implements `->is_authenticated()` and (optionally) `->has_role()`.
+
+### a Git-layer class
+> to add integration after the next stable release (v2.0), because the library has not yet been chosen.
