@@ -28,6 +28,8 @@ if(!defined('PHOENIX_GITLAB_DOMAIN')){ define('PHOENIX_GITLAB_DOMAIN', FALSE); }
 
 if(!defined('PHOENIX_CHMOD')){ define('PHOENIX_CHMOD', 0777 ); }
 
+if(!defined('PHOENIX_AUTHENTICATED')){ define('PHOENIX_AUTHENTICATED', TRUE); }
+
 class Phoenix {
 	private $cursor = FALSE;
 	private $settings = array();
@@ -111,7 +113,19 @@ class Phoenix {
 		return $this->is_authenticated();
 	}
 	function is_authenticated(){
-		return (class_exists('Heracles') ? ( Heracles::is_authenticated() && Heracles::has_role('administrator') ) : TRUE);
+		if(class_exists('Heracles')){
+			return ( Heracles::is_authenticated() && Heracles::has_role('administrator') );
+		}
+		elseif(!(PHOENIX_FRAMEWORK === FALSE)){
+			if(class_exists(PHOENIX_FRAMEWORK) && method_exists(PHOENIX_FRAMEWORK, 'is_authenticated')){
+				$PF = new PHOENIX_FRAMEWORK;
+				if(method_exists(PHOENIX_FRAMEWORK, 'has_role')){ return ($PF->is_authenticated() && $PF->has_role('administrator')); }
+				else { return $PF->is_authenticated(); }
+			}
+		}
+		else{
+			return PHOENIX_AUTHENTICATED;
+		}
 	}
 
 	function upgrade_available(){ /* /!\ dummy: no code provided, yet */
