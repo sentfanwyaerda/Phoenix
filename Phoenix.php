@@ -30,6 +30,8 @@ if(!defined('PHOENIX_CHMOD')){ define('PHOENIX_CHMOD', 0777 ); }
 
 if(!defined('PHOENIX_AUTHENTICATED')){ define('PHOENIX_AUTHENTICATED', TRUE); }
 
+if(!defined('PHOENIX_ENABLE_LOG')){ define('PHOENIX_ENABLE_LOG', TRUE); }
+
 class Phoenix {
 	private $cursor = FALSE;
 	private $settings = array();
@@ -40,6 +42,7 @@ class Phoenix {
 	function __construct($root=NULL, $src=FALSE, $create=FALSE, $phoenix_file=FALSE){
 		$this->buffer['_start_'] = microtime(TRUE);
 		$this->load_buffer();
+		$this->log(array(), __METHOD__, $this->buffer['_start_']);
 		//*notify*/ print '<!-- new Phoenix("'.$root.'", '.($src === FALSE ? 'FALSE' : '"'.$src.'"').', '.($create === FALSE ? 'FALSE' : 'TRUE').') -->'."\n";
 		/*if $root is $phoenix_file*/ if(substr(strtolower($root), (strlen(self::get_fileshort())*-1)) == self::get_fileshort()){ $phoenix_file = $root; $root = NULL; }
 		/*fix*/ if($root === NULL){ $root = dirname(__FILE__).'/'; }
@@ -237,6 +240,16 @@ class Phoenix {
 			if(!in_array($key, array_merge(array('_start_','_created_'), array_keys($this->buffer['_created_'])) )){ unset($this->buffer[$key]); }
 		}
 		return $this->buffer;
+	}
+	function log($log=FALSE, $method=NULL, $when=NULL, $vars=array()){
+		if(PHOENIX_ENABLE_LOG === TRUE){
+			if($when === NULL){ $when = microtime(TRUE); }
+			if(!is_array($vars)){ $vars = array('_line_'=>$vars); }
+			if(!is_array($log)){ $log = array('_log_'=>$log); }
+			$this->buffer['_log_'][] = array_merge(($method === NULL ? array() : array('_method_'=>$method)), array('_when_'=>$when), $log, $vars);
+			return end($this->buffer['_log_']);
+		}
+		return FALSE;
 	}
 	function get_src($parm=0x00000){
 		$src = $this->getVariableByIndex($this->current(), 'src');
