@@ -315,7 +315,38 @@ class Phoenix {
 		if(is_array($var) || is_bool($var)){ return (is_int($i) && isset($this->settings[$i]) ? $this->settings[$i] : FALSE); }
 		else{ return (is_int($i) && isset($this->settings[$i]) && isset($this->settings[$i][$var]) ? $this->settings[$i][$var] : FALSE); }
 	}
+	function getNameByIndex($index, $var='name'){
+		/*fix*/ if(!in_array($var, array('name', 'src', 'mount'))){ $var = 'name'; }
+		return $this->getVariableByIndex($index, 'name');
+	}
 
+	function list_backups($archive=NULL){
+		$this->log(array('archive'=>$archive,'cursor'=>$this->current()), __METHOD__);
+		/* 0. process variables */
+		if($archive !== NULL){
+			if($this->getIndexByName($archive)){ $this->set_cursor($this->getIndexByName($archive)); }
+			elseif($this->getIndexByName($archive, 'src')){ $this->set_cursor($this->getIndexByName($archive, 'src')); }
+			else{ return FALSE; }
+		}
+		/* 0b. process all! */
+		if(is_bool($this->current())){
+			$c = $this->current(); $res = array();
+			$this->reset();
+			for($i=0;$i<$this->length();$i++){
+				$res[$this->getNameByIndex($this->current())] = $this->list_backups(NULL);
+				$this->next();
+			}
+			$this->doAll($c);
+			return $res;
+		} #else{}
+		/* 1. list backups */
+		$res = array();
+		$list = scandir(PHOENIX_ARCHIVE); #$this->get_root($type);
+		foreach($list as $i=>$f){
+			if(preg_match('#^'.$this->getNameByIndex($this->current()).'[\-]#', $f) && preg_match('#\.(zip)$#', $f)){ $res[] = $f; }
+		}
+		return $res;
+	}
 	function get_backup($id=0){ /* /!\ dummy: no code provided, yet */
 		$this->log(NULL, __METHOD__);
 		/*fix*/ if(is_int($id) && $id >= 0){ $id = $this->get_backup_id($id); }
