@@ -320,7 +320,7 @@ class Phoenix {
 		return $this->getVariableByIndex($index, 'name');
 	}
 
-	function list_backups($archive=NULL){
+	function list_backups($archive=NULL, $prefix=FALSE){
 		$this->log(array('archive'=>$archive,'cursor'=>$this->current()), __METHOD__);
 		/* 0. process variables */
 		if($archive !== NULL){
@@ -343,7 +343,7 @@ class Phoenix {
 		$res = array();
 		$list = scandir(PHOENIX_ARCHIVE); #$this->get_root($type);
 		foreach($list as $i=>$f){
-			if(preg_match('#^'.$this->getNameByIndex($this->current()).'[\-]#', $f) && preg_match('#\.(zip)$#', $f)){ $res[] = $f; }
+			if(preg_match('#^'.$this->getNameByIndex($this->current()).'[\-]#', $f) && preg_match('#\.(zip)$#', $f)){ $res[] = ($prefix===TRUE ? PHOENIX_ARCHIVE : NULL).$f; }
 		}
 		return $res;
 	}
@@ -671,7 +671,38 @@ class Phoenix {
 	}
 	function fingerprint($dir, $root=FALSE){ /* /!\ experimental: could operate in an other fashion then specified */
 		$this->log(array('dir'=>$dir,'root'=>$root), __METHOD__);
-		if(is_array($dir) /*is valid fingerprint result*/ ){ return $dir; }
+		if(is_array($dir)){
+			if(/*is valid fingerprint result*/ isset($dir[0]['file']) ){ return $dir; }
+			else{
+				$db = array();
+				/*fix*/ $root = (!($root === FALSE) && self::directory_exists($root) ? $root : NULL);
+				foreach($dir as $i=>$f){
+					if(!preg_match('#^([\.]{1,2}|\.git)$#', $f)){
+						if(file_exists($root.$f) && !is_dir($root.$f)){
+							$db[$i] = array(
+								'file'=>$prefix.$f,
+								'size'=>filesize($root.$f),
+								'mtime'=>filemtime($root.$f),
+								'mtime:iso8601'=>date('c',filemtime($root.$f)),
+								'md5'=> @md5_file($root.$f),
+								'sha1'=> @sha1_file($root.$f)
+							);
+							if(preg_match('#\.(zip)$#', $f)){
+								$zip = new ZipArchive;
+								$zip->open($root.$f);
+								$db[$i]['amount'] = $zip->numFiles;
+								$db[$i]['comment'] = $zip->getArchiveComment();
+								$stat = $zip->statIndex(0);
+								$db[$i]['internal:mtime'] = $stat['mtime'];
+								$db[$i]['internal:mtime:iso8601'] = date('c',$stat['mtime']);
+								$zip->close();
+							}
+						}
+					}
+				}
+				return $db;
+			}
+		}
 		/*fix*/ if($root===FALSE){ $root = $dir; }
 		if(!(substr($dir, 0, strlen($root)) == $root)){ return FALSE; }
 		$prefix = substr($dir, strlen($root));
